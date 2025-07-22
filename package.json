@@ -1,0 +1,52 @@
+{
+    "name": "sap-btp-cloud-logging-client",
+    "version": "1.0.0",
+    "description": "SAP BTP Cloud Logging client for Node.js applications",
+    "main": "index.js",
+    "types": "types/index.d.ts",
+    "files": [
+        "lib",
+        "types",
+        "index.js",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "test": "jest",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "build": "tsc",
+        "pub:dry":"npm publish --dry-run",
+        "publish": "npm run pub:dry && npm publish",
+        "prepublishOnly": "npm test && npm run lint"
+    },
+    "keywords": [
+        "sap",
+        "btp",
+        "cloud-logging",
+        "logging",
+        "sap-cloud-platform"
+    ],
+    "author": "LeoTrinh",
+    "license": "MIT",
+    "dependencies": {
+        "axios": "^1.5.0",
+        "https": "^1.0.0",
+        "uuid": "^11.1.0",
+        "winston": "^3.10.0"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "@types/node": "^20.0.0",
+        "eslint": "^8.0.0",
+        "jest": "^29.7.0",
+        "typescript": "^5.0.0"
+    },
+    "engines": {
+        "node": ">=14.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/leotrinh/sap_btp_cloud_logging_client.git"
+    }
+}
