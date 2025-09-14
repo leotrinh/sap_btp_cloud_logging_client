@@ -2,7 +2,6 @@ name: Publish to NPM
 
 on:
   workflow_call:
-    # Define the outputs that this workflow can send back
     outputs:
       version:
         description: "The package version that was published"
@@ -11,7 +10,6 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # This job must also define the output
     outputs:
       version: ${{ steps.version-check.outputs.current_version }}
     steps:
@@ -28,13 +26,16 @@ jobs:
       - name: Check version and publish if new
         id: version-check
         run: |
+          # Get both version AND name from package.json
           CURRENT_VERSION=$(node -p "require('./package.json').version")
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
-          if npm view ${{ github.event.repository.name }}@$CURRENT_VERSION version > /dev/null 2>&1; then
-            echo "Version $CURRENT_VERSION already exists. Skipping publish."
+          # Use the correct PACKAGE_NAME variable to check npm
+          if npm view "${PACKAGE_NAME}@${CURRENT_VERSION}" version > /dev/null 2>&1; then
+            echo "Version ${CURRENT_VERSION} of ${PACKAGE_NAME} already exists. Skipping publish."
           else
-            echo "Publishing new version $CURRENT_VERSION..."
+            echo "Publishing new version ${CURRENT_VERSION} of ${PACKAGE_NAME}..."
             npm publish
           fi
         env:
