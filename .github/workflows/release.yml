@@ -23,3 +23,4 @@ jobs:
           release_name: Release v${{ inputs.version }}
           body: |
             Auto-generated release for version v${{ inputs.version }}
+            Changelogs: ${{ steps.find-pr.outputs.url }}
