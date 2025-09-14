@@ -10,7 +10,7 @@ const loggerWithConfig = createLogger({
   subaccountId: 'subaccount-b',
   environment: 'production'
 });
-
+loggerWithConfig.info('Test');
 // Basic logging
 async function basicUsage() {
   try {
