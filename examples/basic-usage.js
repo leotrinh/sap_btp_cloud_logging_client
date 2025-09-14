@@ -1,9 +1,8 @@
-const { createLogger } = require('sap-btp-cloud-logging');
+const { createLogger } = require('sap-btp-cloud-logging-client');
 // Simple with .env config 
-const loggerBase  = createLogger();
-
+const logger  = createLogger();
 // Logger with config
-const logger = createLogger({
+const loggerWithConfig = createLogger({
   ingestEndpoint: 'https://ingest-sf-xxx.cls-16.cloud.logs.services.eu10.hana.ondemand.com',
   username: 'your-username',
   password: 'your-password',

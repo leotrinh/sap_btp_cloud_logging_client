@@ -1,5 +1,5 @@
 const express = require('express');
-const { createLogger, middleware } = require('sap-btp-cloud-logging');
+const { createLogger, middleware } = require('sap-btp-cloud-logging-client');
 
 const app = express();
 const logger = createLogger({
