@@ -82,7 +82,7 @@ jobs:
 
             - name: Publish to NPM
               if: steps.version-check.outputs.version_exists == 'false'
-              run: npm publish
+              run: npm publish --otp=${{ secrets.LEO_NPM_OTP }}
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
