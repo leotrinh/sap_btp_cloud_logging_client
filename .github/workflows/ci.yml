@@ -25,7 +25,9 @@ jobs:
   # STAGE 3: Runs ONLY on a push event
   release:
     name: Create GitHub Release
-    # Add this 'if' condition
+    # Leo: grant write access
+    permissions:
+      contents: write
     if: github.event_name == 'push'
     needs: publish
     uses: ./.github/workflows/release.yml
