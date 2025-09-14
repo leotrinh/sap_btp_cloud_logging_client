@@ -1,99 +1,25 @@
-name: Release Package
+name: Create GitHub Release
 
 on:
-    push:
-        branches: [main]
-    pull_request:
-        branches: [main]
+  workflow_call:
+    # Define the inputs that this workflow accepts
+    inputs:
+      version:
+        description: 'The package version for the release'
+        required: true
+        type: string
 
 jobs:
-    # Test and lint on all pushes and PRs
-    test:
-        runs-on: ubuntu-latest
-
-        strategy:
-            matrix:
-                node-version: [20.x, 22.x]
-
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-
-            - name: Setup Node.js ${{ matrix.node-version }}
-              uses: actions/setup-node@v4
-              with:
-                  node-version: ${{ matrix.node-version }}
-                  cache: "npm"
-
-            - name: Install dependencies
-              run: npm ci
-
-            - name: Run tests
-              run: npm test
-
-            - name: Run linter
-              run: npm run lint
-
-    # Build and release only on main branch pushes
-    release:
-        needs: test
-        runs-on: ubuntu-latest
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-              with:
-                  # Fetch full history for semantic release
-                  fetch-depth: 0
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: "20.x"
-                  cache: "npm"
-                  registry-url: "https://registry.npmjs.org"
-
-            - name: Install dependencies
-              run: npm ci
-
-            - name: Build package
-              run: npm run build
-
-            - name: Check if version changed
-              id: version-check
-              run: |
-                  # Get current version from package.json
-                  CURRENT_VERSION=$(node -p "require('./package.json').version")
-                  echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-
-                  # Check if this version exists on npm
-                  if npm view ${{ github.event.repository.name }}@$CURRENT_VERSION version 2>/dev/null; then
-                    echo "version_exists=true" >> $GITHUB_OUTPUT
-                    echo "Version $CURRENT_VERSION already exists on npm"
-                  else
-                    echo "version_exists=false" >> $GITHUB_OUTPUT
-                    echo "Version $CURRENT_VERSION is new"
-                  fi
-
-            - name: Publish to NPM
-              if: steps.version-check.outputs.version_exists == 'false'
-              # Create Access Tokens type Granular Access Token (for 2FA Account instead using npm publish --otp=${{ secrets.LEO_NPM_OTP }})
-              run: npm publish
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-            - name: Create GitHub Release
-              if: steps.version-check.outputs.version_exists == 'false'
-              uses: actions/create-release@v1
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  tag_name: v${{ steps.version-check.outputs.current_version }}
-                  release_name: Release v${{ steps.version-check.outputs.current_version }}
-                  body: |
-                      ## Changes
-                      - Auto-generated release for version ${{ steps.version-check.outputs.current_version }}
-                      - See commit history for detailed changes
-                  draft: false
-                  prerelease: false
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      # We only need to create the release, no need to checkout code again
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ inputs.version }}
+          release_name: Release v${{ inputs.version }}
+          body: |
+            Auto-generated release for version v${{ inputs.version }}
