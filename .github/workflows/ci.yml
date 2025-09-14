@@ -1,0 +1,34 @@
+name: Main CI/CD Pipeline
+
+# Trigger on pushes AND pull requests to the 'main' branch
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # STAGE 1: Always runs for both push and pull_request
+  test:
+    name: Run Tests and Linter
+    uses: ./.github/workflows/test.yml
+
+  # STAGE 2: Runs ONLY on a push event (e.g., a merge)
+  publish:
+    name: Publish to NPM
+    # Add this 'if' condition
+    if: github.event_name == 'push'
+    needs: test
+    uses: ./.github/workflows/publish.yml
+    secrets: inherit
+
+  # STAGE 3: Runs ONLY on a push event
+  release:
+    name: Create GitHub Release
+    # Add this 'if' condition
+    if: github.event_name == 'push'
+    needs: publish
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.publish.outputs.version }}
+    secrets: inherit
