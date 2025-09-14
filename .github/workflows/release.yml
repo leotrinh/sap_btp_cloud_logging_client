@@ -60,8 +60,10 @@ jobs:
             - name: Build package
               run: npm run build
 
-            - name: Dry run publish
-              run: npm run pub:dry
+            # - name: Dry run publish
+            #   run: npm run pub:dry
+            #   env:
+            #       NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
             - name: Check if version changed
               id: version-check
