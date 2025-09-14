@@ -1,0 +1,13 @@
+.github/
+.vscode/
+*.test.js
+*.test.ts
+jest.config.js
+tsconfig.json
+.eslintrc.json
+
+*.log
+.DS_Store
+node_modules/
+coverage/
+.nyc_output/

@@ -1,5 +1,5 @@
 const winston = require('winston');
-const { createLogger, WinstonTransport } = require('sap-btp-cloud-logging');
+const { createLogger, WinstonTransport } = require('sap-btp-cloud-logging-client');
 
 // Create BTP Cloud Logger
 const btpLogger = createLogger({

@@ -1,8 +1,9 @@
 # SAP BTP Cloud Logging Client
 A Package support using cloud logging multiple-sub accounts with 1 Cloud Logging instance
 Example: Your System Landscape with 3 global account (2 CPEA, 1 PAYG)
-
 ```
+
+
 ├── Global CPEA Subcribe
 │   ├── Sub Account A Subcribed Cloud Logging
 │   ├── Sub Account B using Cloud Logging via sap-btp-cloud-logging-client
@@ -41,23 +42,60 @@ npm install sap-btp-cloud-logging-client
 ```
 ### Env config
 All required config bellow can get from Service: Cloud Logging instance Service Keys
+- v1.0.0 it's support only this way
 ```
 # Required
 BTP_LOGGING_INGEST_ENDPOINT=https://ingest-sf-xxx.cls-16.cloud.logs.services.eu10.hana.ondemand.com
-BTP_LOGGING_USERNAME=your-username
-BTP_LOGGING_PASSWORD=your-password
+BTP_LOGGING_USERNAME=your-ignest-username
+BTP_LOGGING_PASSWORD=your-ingest-password
 
 # Optional
 BTP_SUBACCOUNT_ID=subaccount-id #to determine the logs source
-BTP_APPLICATION_NAME=your-app-name
+BTP_APPLICATION_NAME=your-app-name #it's based on application
 BTP_LOG_LEVEL=INFO
 BTP_LOGGING_MAX_RETRIES=3
 BTP_LOGGING_TIMEOUT=5000
 ```
+- from v1.0.1 support new way using json from service key of  Cloud Logging
+Get it from ```SubAccount (Subcribtion Cloug Logging) -> Instance Cloud Logging -> Service Keys (if not exist create new one)```
+BTP_LOGGING_SRV_KEY_CRED = {copy all json from Cloud Logging Service Key}
+
+Example:
+
+```
+BTP_LOGGING_SRV_KEY_CRED ={
+    "client-ca": "<sensitive>",
+    "dashboards-endpoint": "dashboards-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
+    "dashboards-password": "<sensitive>",
+    "dashboards-username": "<sensitive>",
+    "ingest-endpoint": "ingest-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
+    "ingest-mtls-cert": "",
+    "ingest-mtls-endpoint": "ingest-mtls-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
+    "ingest-mtls-key": "",
+    "ingest-password": "<sensitive>",
+    "ingest-username": "vMSeXiYcYF",
+"server-ca":"<sensitive>"
+}
+```
+
+
+### Instance Specify Config
+
+```
+const logger = createLogger({
+  ingestEndpoint: 'https://ingest-sf-xxx.cls-16.cloud.logs.services.eu10.hana.ondemand.com',
+  username: 'your-username',
+  password: 'your-password',
+  applicationName: 'my-app',
+  subaccountId: 'subaccount-b',
+  environment: 'production'
+});
+```
+
 ### Basic implementation
 - Javascript
 ```
-const { createLogger } = require('sap-btp-cloud-logging');
+const { createLogger } = require('sap-btp-cloud-logging-client');
 
 const logger = createLogger();
 
@@ -69,14 +107,35 @@ import { createLogger, middleware as loggingMiddleware } from 'sap-btp-cloud-log
 const logger = createLogger();
 logger.info('Hello from BTP Cloud Logging!');
 ```
+#### Logs Batch 
 
-## Contributors & Issues
-### Issues
-Any issues can report at [Issues]([tinhtd.info@gmail.com](https://github.com/leotrinh/sap_btp_cloud_logging_client/issues))
+```
+async function batchLogging() {
+  const entries = [
+    { level: 'INFO', message: 'Batch entry 1', metadata: { batch: 1 } },
+    { level: 'INFO', message: 'Batch entry 2', metadata: { batch: 2 } },
+    { level: 'WARN', message: 'Batch entry 3', metadata: { batch: 3 } }
+  ];
 
-### Contributors
-In its initial version, this project was created to meet my specific needs, and it may not fully align with your use case. We aim to make contributing to this project as easy and transparent as possible. To contribute, simply make your changes and submit a pull request (PR).
+  await logger.logBatch(entries);
+}
+```
+### Dashboard & Discovery Logs
+#### Cloud Logging Open Search Dashboard
+- The url/ credential to access Dashboard inside Service Key you will see
 
-Feel free to let me know if you need any further adjustments!
-#### Contributing
-1. [Leo Trịnh](tinhtd.info@gmail.com)
+```
+"dashboards-endpoint": "dashboards-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
+"dashboards-password": "<sensitive>",
+"dashboards-username": "<sensitive>",
+```
+Using browser to visit url: ```dashboards-endpoint``` and cred (username, password) above
+
+- Discovery Logs: from the dashboard click to Discovery menu on the left side
+![Discovery Logs](docs/static/discovery-log.png)
+Then you should filter by ```logs-json-*```
+![logs-json-*](docs/static/discovery-logs-json.png)
+here you can filter data by sub account, application...etc
+
+## Contributors
+We want to make contributing to this project as easy and transparent as possible. So, just simple do the change then create PR

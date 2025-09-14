@@ -25,7 +25,7 @@ describe('CloudLoggingService', () => {
   });
 
   describe('Constructor', () => {
-    // LEO-FIX: This test now provides the required environment variables 
+    // LEO-FIX: This test now provides the required environment variables
     // to properly test initialization from default values.
     it('should initialize with default config when env vars are set', () => {
       process.env.BTP_LOGGING_INGEST_ENDPOINT = 'http://dummy-endpoint.com';
@@ -34,7 +34,9 @@ describe('CloudLoggingService', () => {
 
       const defaultLogger = new CloudLoggingService();
       expect(defaultLogger.config).toBeDefined();
-      expect(defaultLogger.config.ingestEndpoint).toBe('http://dummy-endpoint.com');
+      expect(defaultLogger.config.ingestEndpoint).toBe(
+        'http://dummy-endpoint.com'
+      );
 
       // Cleanup env variables
       delete process.env.BTP_LOGGING_INGEST_ENDPOINT;
@@ -64,12 +66,12 @@ describe('CloudLoggingService', () => {
             level: 'INFO',
             message: 'Test message',
             application: 'test-app',
-            userId: 'user123'
+            userId: 'user123',
           }),
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
-            'Authorization': expect.stringContaining('Basic')
-          })
+            Authorization: expect.stringContaining('Basic'),
+          }),
         })
       );
     });
@@ -85,8 +87,8 @@ describe('CloudLoggingService', () => {
           data: expect.objectContaining({
             level: 'ERROR',
             message: 'Error message',
-            errorCode: 'E001'
-          })
+            errorCode: 'E001',
+          }),
         })
       );
     });
@@ -100,7 +102,7 @@ describe('CloudLoggingService', () => {
 
       const entries = [
         { level: 'INFO', message: 'Message 1', metadata: { batch: 1 } },
-        { level: 'WARN', message: 'Message 2', metadata: { batch: 2 } }
+        { level: 'WARN', message: 'Message 2', metadata: { batch: 2 } },
       ];
 
       await logger.logBatch(entries);
@@ -109,7 +111,7 @@ describe('CloudLoggingService', () => {
         mockConfig.ingestEndpoint,
         expect.arrayContaining([
           expect.objectContaining({ level: 'INFO', message: 'Message 1' }),
-          expect.objectContaining({ level: 'WARN', message: 'Message 2' })
+          expect.objectContaining({ level: 'WARN', message: 'Message 2' }),
         ]),
         expect.any(Object)
       );
@@ -118,15 +120,18 @@ describe('CloudLoggingService', () => {
 
   describe('Error Handling', () => {
     it('should handle network errors gracefully', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+      const consoleErrorSpy = jest
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
       // LEO-FIX: Reject the main axios function call
       mockedAxios.mockRejectedValue(new Error('Network error'));
 
       await logger.info('Test message');
 
+      // Leo: updated test to match the new, more detailed error log format.
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Cloud Logging failed:',
-        'Network error'
+        'Cloud Logging failed: Network error. Log:',
+        { level: 'INFO', message: 'Test message', metadata: {} }
       );
       expect(logger.isHealthy).toBe(false);
 
@@ -167,7 +172,7 @@ describe('CloudLoggingService', () => {
         healthy: true,
         retryCount: 0,
         maxRetries: 3,
-        endpoint: mockConfig.ingestEndpoint
+        endpoint: mockConfig.ingestEndpoint,
       });
     });
   });
@@ -184,17 +189,27 @@ describe('ConfigManager', () => {
   });
 
   describe('Config Validation', () => {
-    it('should throw error for missing ingest endpoint', () => {
-      expect(() => {
-        ConfigManager.validateConfig({});
-      }).toThrow('BTP_LOGGING_INGEST_ENDPOINT is required');
+    // it('should throw error for missing ingest endpoint', () => {
+    //   expect(() => {
+    //     ConfigManager.validateConfig({});
+    //   }).toThrow('BTP_LOGGING_INGEST_ENDPOINT is required');
+    // });
+    it('should warn for missing ingest endpoint', () => {
+      const consoleWarnSpy = jest
+        .spyOn(console, 'warn')
+        .mockImplementation(() => {});
+      ConfigManager.validateConfig({});
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        'BTP_LOGGING_INGEST_ENDPOINT is not configured. Logging may fallback to console if enabled.'
+      );
+      consoleWarnSpy.mockRestore();
     });
 
     it('should throw error for missing basic auth credentials', () => {
       expect(() => {
         ConfigManager.validateConfig({
           ingestEndpoint: 'https://test.com',
-          authType: 'basic'
+          authType: 'basic',
         });
       }).toThrow('Username and password are required for basic authentication');
     });
@@ -203,9 +218,11 @@ describe('ConfigManager', () => {
       expect(() => {
         ConfigManager.validateConfig({
           ingestEndpoint: 'https://test.com',
-          authType: 'mtls'
+          authType: 'mtls',
         });
-      }).toThrow('Client certificate and key are required for mTLS authentication');
+      }).toThrow(
+        'Client certificate and key are required for mTLS authentication'
+      );
     });
   });
 
@@ -218,21 +235,23 @@ describe('ConfigManager', () => {
         'dashboards-endpoint': 'dashboard-test.com',
         'ingest-mtls-cert': 'cert-data',
         'ingest-mtls-key': 'key-data',
-        'server-ca': 'ca-data'
+        'server-ca': 'ca-data',
       };
 
       const config = ConfigManager.fromServiceKey(serviceKey);
 
+      // Leo: <comment modified> Expect authType to be 'mtls' because it's prioritized over basic auth when certs are available.
       expect(config).toEqual({
         ingestEndpoint: 'https://ingest-test.com',
         dashboardEndpoint: 'https://dashboard-test.com',
-        authType: 'basic',
+        authType: 'mtls',
         username: 'test-user',
         password: 'test-pass',
         clientCert: 'cert-data',
         clientKey: 'key-data',
-        serverCa: 'ca-data'
+        serverCa: 'ca-data',
       });
     });
   });
+  //EOD
 });

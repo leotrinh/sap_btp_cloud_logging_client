@@ -1,4 +1,4 @@
-const { CloudLoggingService, ConfigManager } = require('sap-btp-cloud-logging');
+const { CloudLoggingService, ConfigManager } = require('sap-btp-cloud-logging-client');
 
 // Using service key
 const serviceKey = {
