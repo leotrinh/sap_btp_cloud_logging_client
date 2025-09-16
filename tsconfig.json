@@ -11,8 +11,7 @@
     "include": [
         "index.js",
         "lib/**/*.js",
-        "types/**/*.d.ts"
-, "../testmail/archive_btp_cloud_log/Common.js"    ],
+        "types/**/*.d.ts"],
     "exclude": [
         "node_modules",
         "test",
