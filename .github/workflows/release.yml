@@ -23,4 +23,5 @@ jobs:
           release_name: Release v${{ inputs.version }}
           body: |
             Auto-generated release for version v${{ inputs.version }}
-            Changelogs: ${{ steps.find-pr.outputs.url }}
+            Changelogs: https://github.com/leotrinh/sap_btp_cloud_logging_client/blob/main/ChangeLogs.md
+            Latest PR: ${{ steps.find-pr.outputs.url }}

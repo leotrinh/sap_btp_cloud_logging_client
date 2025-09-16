@@ -10,6 +10,7 @@ export interface LogMetadata {
 export interface CloudLoggingConfig {
 	// BTP Cloud Logging endpoints
 	ingestEndpoint?: string;
+	ingestMtlsEndpoint?: string;
 	dashboardEndpoint?: string;
 
 	// Authentication
@@ -23,7 +24,7 @@ export interface CloudLoggingConfig {
 	serverCa?: string;
 
 	// Application context
-	subaccountId?: string;
+	subAccountId?: string;
 	applicationName?: string;
 	environment?: string;
 

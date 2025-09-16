@@ -1,9 +1,10 @@
 # SAP BTP Cloud Logging Client
+
+[![npm version](https://img.shields.io/npm/v/sap-btp-cloud-logging-client.svg)](https://www.npmjs.com/package/sap-btp-cloud-logging-client) [![npm downloads](https://img.shields.io/npm/dm/sap-btp-cloud-logging-client.svg)](https://www.npmjs.com/package/sap-btp-cloud-logging-client)
+
 A Package support using cloud logging multiple-sub accounts with 1 Cloud Logging instance
 Example: Your System Landscape with 3 global account (2 CPEA, 1 PAYG)
 ```
-
-
 ├── Global CPEA Subcribe
 │   ├── Sub Account A Subcribed Cloud Logging
 │   ├── Sub Account B using Cloud Logging via sap-btp-cloud-logging-client
@@ -56,14 +57,15 @@ BTP_LOG_LEVEL=INFO
 BTP_LOGGING_MAX_RETRIES=3
 BTP_LOGGING_TIMEOUT=5000
 ```
-- from v1.0.1 support new way using json from service key of  Cloud Logging
+- from v1.0.1 support new way using json from service key JSON of Cloud Logging (still auth by basic not mtls way -> then you can remove ```server-ca,ingest-mtls-key,ingest-mtls-cert,client-ca``` we no need it any more just add this for lazy set multiple env prop)
+  
 Get it from ```SubAccount (Subcribtion Cloug Logging) -> Instance Cloud Logging -> Service Keys (if not exist create new one)```
 BTP_LOGGING_SRV_KEY_CRED = {copy all json from Cloud Logging Service Key}
 
-Example:
+Example: ```BTP_LOGGING_SRV_KEY_CRED ='<json content copy from service key>'```
 
 ```
-BTP_LOGGING_SRV_KEY_CRED ={
+BTP_LOGGING_SRV_KEY_CRED ='{
     "client-ca": "<sensitive>",
     "dashboards-endpoint": "dashboards-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
     "dashboards-password": "<sensitive>",
@@ -75,9 +77,11 @@ BTP_LOGGING_SRV_KEY_CRED ={
     "ingest-password": "<sensitive>",
     "ingest-username": "vMSeXiYcYF",
 "server-ca":"<sensitive>"
-}
+}'
 ```
-
+### Auth & post log
+We'll use username, password from service key for ```basic auth``` for ```mtls``` way seem the key valid max only ```180 days``` we've to create a feature auto create/get new key...etc it complex even we've env ```BTP_LOGGING_SRV_AUTH_TYPE='basic';//allow: basic,mtls``` but not recommend using ```mtls``` this time
+![ignest expire 180 days](docs/static/ignets-mtls-180-days.png)
 
 ### Instance Specify Config
 
@@ -92,7 +96,8 @@ const logger = createLogger({
 });
 ```
 
-### Basic implementation
+### Implementation
+#### Basic
 - Javascript
 ```
 const { createLogger } = require('sap-btp-cloud-logging-client');
@@ -107,6 +112,37 @@ import { createLogger, middleware as loggingMiddleware } from 'sap-btp-cloud-log
 const logger = createLogger();
 logger.info('Hello from BTP Cloud Logging!');
 ```
+or can create a common class for using
+```
+import { createLogger } from 'sap-btp-cloud-logging-client';
+export function getCloudLogger(): any  {
+    try {
+        //Leo: using default instance with env value maintenance 
+        const btpCloudLogger = createLogger();
+        if(!btpCloudLogger){
+            throw new Error(`Can't get BTP Cloud Logging Client instance`); 
+        }
+        return btpCloudLogger;
+    } catch (error) {
+        console.log(`get BTP Cloud Logging Client instance error: ${error.message ?? 'N\A'}`);
+        throw new Error(`Can't get BTP Cloud Logging Client instance`); 
+    }
+}
+```
+
+#### Add metadata dynamic property
+```
+const sampleMetadata = {
+        source:"S4",
+        source_system:"S4H_DEMO",
+        payload: {
+            user:"leo"
+        }
+    };
+    logger.info(`New Supplier Created`,sampleMetadata);
+```
+Result
+![using metadata dynamic property](docs/static/metadata-dynamic-property.png)
 #### Logs Batch 
 
 ```
