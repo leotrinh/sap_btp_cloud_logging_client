@@ -14,6 +14,11 @@ Example: Your System Landscape with 3 global account (2 CPEA, 1 PAYG)
 │   └── Sub Account D using Cloud Logging via sap-btp-cloud-logging-client
 ```
 
+## Documentation
+- [**Architecture & Design**](docs/Architecture.md) - Internal components and multi-subaccount patterns.
+- [**Detailed Usage Guide**](docs/Usage.md) - Configuration references and advanced features.
+- [**Release Notes**](docs/Release.md) - Release process.
+
 ## Project Structure
 ```
 sap-btp-cloud-logging-client/
@@ -23,14 +28,27 @@ sap-btp-cloud-logging-client/
 ├── index.js
 ├── lib/
 │   ├── CloudLoggingService.js
+│   ├── ConfigManager.js
 │   ├── LogFormatter.js
-│   └── ConfigManager.js
+│   ├── Transport.js
+│   ├── Middleware.js
+│   ├── WinstonTransport.js
+│   └── JSONUtils.js
 ├── types/
 │   └── index.d.ts
 ├── examples/
 │   ├── basic-usage.js
 │   ├── express-middleware.js
-│   └── advanced-usage.js
+│   ├── advanced-usage.js
+│   ├── winston-integration.js
+│   ├── BTPCloudLogger.ts
+│   └── utils/
+│       ├── LogUtils.ts
+│       └── LogUtils.js
+├── docs/
+│   ├── Architecture.md
+│   ├── Usage.md
+│   └── Release.md
 └── test/
     └── CloudLoggingService.test.js
 ```
@@ -53,10 +71,15 @@ BTP_LOGGING_PASSWORD=your-ingest-password
 # Optional
 BTP_SUBACCOUNT_ID=subaccount-id #to determine the logs source
 BTP_APPLICATION_NAME=your-app-name #it's based on application
-BTP_LOG_LEVEL=INFO
+BTP_LOG_LEVEL=INFO # Optional: DEBUG, INFO, WARN, ERROR, FATAL (default: DEBUG)
 BTP_LOGGING_MAX_RETRIES=3
 BTP_LOGGING_TIMEOUT=5000
 ```
+#### Log Level Filtering
+- You can control the verbosity of logs using `BTP_LOG_LEVEL` or `logLevel` in config.
+- Levels: `DEBUG` < `INFO` < `WARN` < `ERROR` < `FATAL`
+- Example: If `BTP_LOG_LEVEL=WARN`, only `WARN`, `ERROR`, and `FATAL` logs will be sent.
+
 - from v1.0.1 support new way using json from service key JSON of Cloud Logging (still auth by basic not mtls way -> then you can remove ```server-ca,ingest-mtls-key,ingest-mtls-cert,client-ca``` we no need it any more just add this for lazy set multiple env prop)
   
 Get it from ```SubAccount (Subcribtion Cloug Logging) -> Instance Cloud Logging -> Service Keys (if not exist create new one)```
@@ -112,22 +135,44 @@ import { createLogger, middleware as loggingMiddleware } from 'sap-btp-cloud-log
 const logger = createLogger();
 logger.info('Hello from BTP Cloud Logging!');
 ```
-or can create a common class for using
+or can create a standard common class (Singleton pattern) for using:
+> **Check full example code at:** [examples/utils/LogUtils.ts](examples/utils/LogUtils.ts)
+
+```typescript
+import { LogUtils }  from './utils/LogUtils';
+
+// Get instance (Singleton)
+const logger = LogUtils.getInstance();
+
+// Usage
+logger.info('System initialized');
+
+// API Logging
+logger.apiInfo('User login', {
+    source: 'AuthService',
+    userId: 'user-123',
+    statusCode: 200
+});
+
+// Scheduler Logging
+logger.schedulerInfo('Daily sync started', {
+    jobName: 'SyncJob',
+    jobId: 'job-001'
+});
 ```
-import { createLogger } from 'sap-btp-cloud-logging-client';
-export function getCloudLogger(): any  {
-    try {
-        //Leo: using default instance with env value maintenance 
-        const btpCloudLogger = createLogger();
-        if(!btpCloudLogger){
-            throw new Error(`Can't get BTP Cloud Logging Client instance`); 
-        }
-        return btpCloudLogger;
-    } catch (error) {
-        console.log(`get BTP Cloud Logging Client instance error: ${error.message ?? 'N\A'}`);
-        throw new Error(`Can't get BTP Cloud Logging Client instance`); 
-    }
-}
+### Middleware Configuration
+You can configure the Express middleware to exclude paths or toggle logging:
+
+```javascript
+const { createLogger, middleware } = require('sap-btp-cloud-logging-client');
+const app = require('express')();
+const logger = createLogger();
+
+app.use(middleware(logger, {
+  logRequests: true,      // Log incoming requests (default: true)
+  logResponses: true,     // Log responses (default: true)
+  excludePaths: ['/health', '/metrics', '/readiness'] // Skip logging for these paths
+}));
 ```
 
 #### Add metadata dynamic property

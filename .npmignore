@@ -1,5 +1,13 @@
 .github/
 .vscode/
+.agent/
+.claude/
+
+# Internal review docs
+docs/CodeReview.md
+docs/WorkflowReview.md
+
+# Test & dev config
 *.test.js
 *.test.ts
 jest.config.js
