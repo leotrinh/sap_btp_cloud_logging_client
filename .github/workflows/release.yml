@@ -2,7 +2,6 @@ name: Create GitHub Release
 
 on:
   workflow_call:
-    # Define the inputs that this workflow accepts
     inputs:
       version:
         description: 'The package version for the release'
@@ -12,16 +11,19 @@ on:
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      # We only need to create the release, no need to checkout code again
+      - uses: actions/checkout@v4
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}
-          release_name: Release v${{ inputs.version }}
+          name: Release v${{ inputs.version }}
           body: |
             Auto-generated release for version v${{ inputs.version }}
-            Changelogs: https://github.com/leotrinh/sap_btp_cloud_logging_client/blob/main/ChangeLogs.md
-            Latest PR: ${{ steps.find-pr.outputs.url }}
+            
+            See [ChangeLogs.md](https://github.com/leotrinh/sap_btp_cloud_logging_client/blob/main/ChangeLogs.md) for details.
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
