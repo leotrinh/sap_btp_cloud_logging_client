@@ -106,7 +106,7 @@ describe('CloudLoggingService', () => {
 
   describe('Error Handling', () => {
     it('should handle network errors gracefully', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
       mockedAxios.mockRejectedValue(new Error('Network error'));
 
       await logger.info('Test message');
@@ -147,6 +147,54 @@ describe('CloudLoggingService', () => {
       });
     });
   });
+
+  describe('Log Level Filtering', () => {
+    it('should skip DEBUG logs when logLevel is INFO', async () => {
+      mockedAxios.mockResolvedValue({ status: 200 });
+      const infoLogger = new CloudLoggingService({ ...mockConfig, logLevel: 'INFO' });
+
+      await infoLogger.debug('Debug message');
+      expect(mockedAxios).not.toHaveBeenCalled();
+
+      await infoLogger.info('Info message');
+      expect(mockedAxios).toHaveBeenCalled();
+    });
+
+    it('should skip DEBUG and INFO when logLevel is WARN', async () => {
+      mockedAxios.mockResolvedValue({ status: 200 });
+      const warnLogger = new CloudLoggingService({ ...mockConfig, logLevel: 'WARN' });
+
+      await warnLogger.debug('Debug message');
+      await warnLogger.info('Info message');
+      expect(mockedAxios).not.toHaveBeenCalled();
+
+      await warnLogger.warn('Warn message');
+      expect(mockedAxios).toHaveBeenCalled();
+    });
+
+    it('should filter batch entries based on logLevel', async () => {
+      mockedAxios.mockResolvedValue({ status: 200 });
+      const warnLogger = new CloudLoggingService({ ...mockConfig, logLevel: 'WARN' });
+
+      const entries = [
+        { level: 'DEBUG', message: 'Debug' },
+        { level: 'INFO', message: 'Info' },
+        { level: 'WARN', message: 'Warn' },
+        { level: 'ERROR', message: 'Error' },
+      ];
+
+      await warnLogger.logBatch(entries);
+
+      expect(mockedAxios).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ level: 'WARN' }),
+            expect.objectContaining({ level: 'ERROR' }),
+          ]),
+        })
+      );
+    });
+  });
 });
 
 describe('ConfigManager', () => {
@@ -160,7 +208,7 @@ describe('ConfigManager', () => {
   describe('Config Validation', () => {
     // Leo: this test now checks for a console warning instead of an error, matching the new logic.
     it('should warn for missing ingest endpoint', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
       ConfigManager.validateConfig({ authType: 'basic' });
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         'BTP_LOGGING_INGEST_ENDPOINT is not configured. Logging may fallback to console if enabled.'

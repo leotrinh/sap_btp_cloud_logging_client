@@ -61,6 +61,7 @@ export interface HealthStatus {
 	retryCount: number;
 	maxRetries: number;
 	endpoint: string;
+	mtlsEndpoint: string;
 }
 
 export interface ServiceKey {
