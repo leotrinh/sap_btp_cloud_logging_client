@@ -38,7 +38,7 @@ export interface CloudLoggingConfig {
 	includeStackTrace?: boolean;
 	correlationIdHeader?: string;
 
-	// SAP Cloud Logging field mapping
+	// BTP Cloud Logging field mapping
 	enableSAPFieldMapping?: boolean; // Default: true
 
 	// Fallback options
