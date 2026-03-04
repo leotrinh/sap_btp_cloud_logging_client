@@ -3,7 +3,7 @@
 Use this prompt to help the user integrate the `sap-btp-cloud-logging-client` into their project.
 
 ## Context
-The user wants to add SAP BTP Cloud Logging to their Node.js/TypeScript project. This library provides a standard way to send logs to SAP Cloud Logging service.
+The user wants to add SAP BTP Cloud Logging to their Node.js/TypeScript project. This library provides a standard way to send logs to BTP Cloud Logging service.
 
 ## Goal
 Guide the user through installation, configuration, and implementation of a standard `LogUtils` class.

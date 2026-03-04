@@ -38,6 +38,9 @@ export interface CloudLoggingConfig {
 	includeStackTrace?: boolean;
 	correlationIdHeader?: string;
 
+	// SAP Cloud Logging field mapping
+	enableSAPFieldMapping?: boolean; // Default: true
+
 	// Fallback options
 	fallbackToConsole?: boolean;
 	fallbackLogger?: any;
@@ -82,6 +85,7 @@ export interface FormattedLogEntry {
 	timestamp: string;
 	level: string;
 	message: string;
+	msg: string; // Add msg field for SAP BTP Cloud Logging filtering
 	application: string;
 	environment: string;
 	subaccount: string;
@@ -90,6 +94,9 @@ export interface FormattedLogEntry {
 	correlationId?: string;
 	stack?: string;
 	request?: RequestInfo;
+	// BTP Cloud Logging standard fields
+	app_name?: string; // Mapped from application
+	organization_name?: string; // Mapped from subaccount
 	[key: string]: any;
 }
 
