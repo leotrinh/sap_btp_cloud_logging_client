@@ -100,7 +100,7 @@ describe('LogFormatter', () => {
       const result = errorFormatter.format('ERROR', 'Error message');
       
       expect(result).toHaveProperty('stack');
-      expect(result.stack).toContain('Error');
+      expect(result.stack).toContain('at LogFormatter._getStackTrace');
     });
 
     it('should format object messages as JSON', () => {
