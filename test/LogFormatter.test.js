@@ -15,7 +15,7 @@ describe('LogFormatter', () => {
   describe('format', () => {
     it('should format basic log entry with all required fields', () => {
       const result = formatter.format('INFO', 'Test message');
-      
+
       expect(result).toMatchObject({
         level: 'INFO',
         message: 'Test message',
@@ -29,114 +29,116 @@ describe('LogFormatter', () => {
       });
     });
 
-    it('should apply BTP Cloud Logging when enabled', () => {
-      const result = formatter.format('INFO', 'Test message');
-      
-      expect(result).toHaveProperty('msg', 'Test message');
-      expect(result).toHaveProperty('app_name', 'TestApp');
-      expect(result).toHaveProperty('organization_name', 'test-subaccount');
-    });
+    describe('BTP Cloud Logging field mapping', () => {
+      it('should apply BTP field mapping when enabled', () => {
+        const result = formatter.format('INFO', 'Test message');
 
-    it('should not apply BTP Cloud Logging when disabled', () => {
-      const disabledFormatter = new LogFormatter({
-        applicationName: 'TestApp',
-        environment: 'test',
-        subAccountId: 'test-subaccount',
-        enableSAPFieldMapping: false
+        expect(result).toHaveProperty('msg', 'Test message');
+        expect(result).toHaveProperty('app_name', 'TestApp');
+        expect(result).toHaveProperty('organization_name', 'test-subaccount');
       });
 
-      const result = disabledFormatter.format('INFO', 'Test message');
-      
-      expect(result).toHaveProperty('msg', 'Test message'); // Still added for compatibility
-      expect(result).not.toHaveProperty('app_name');
-      expect(result).not.toHaveProperty('organization_name');
-    });
+      it('should not apply BTP field mapping when disabled', () => {
+        const disabledFormatter = new LogFormatter({
+          applicationName: 'TestApp',
+          environment: 'test',
+          subAccountId: 'test-subaccount',
+          enableSAPFieldMapping: false
+        });
 
-    it('should preserve custom metadata fields', () => {
-      const metadata = {
-        userId: '123',
-        action: 'login',
-        customField: 'custom value'
-      };
+        const result = disabledFormatter.format('INFO', 'Test message');
 
-      const result = formatter.format('INFO', 'Test message', metadata);
-      
-      expect(result).toMatchObject(metadata);
-      expect(result).toHaveProperty('app_name', 'TestApp'); // SAP mapping still applied
-    });
-
-    it('should handle correlation ID correctly', () => {
-      const metadata = { correlationId: 'corr-123' };
-      const result = formatter.format('INFO', 'Test message', metadata);
-      
-      expect(result.correlationId).toBe('corr-123');
-    });
-
-    it('should handle request ID as correlation ID fallback', () => {
-      const metadata = { requestId: 'req-123' };
-      const result = formatter.format('INFO', 'Test message', metadata);
-      
-      expect(result.correlationId).toBe('req-123');
-    });
-
-    it('should prioritize correlation ID over request ID', () => {
-      const metadata = { 
-        correlationId: 'corr-123',
-        requestId: 'req-456'
-      };
-      const result = formatter.format('INFO', 'Test message', metadata);
-      
-      expect(result.correlationId).toBe('corr-123');
-    });
-
-    it('should add stack trace for ERROR level when enabled', () => {
-      const errorFormatter = new LogFormatter({
-        applicationName: 'TestApp',
-        environment: 'test',
-        subAccountId: 'test-subaccount',
-        includeStackTrace: true
+        expect(result).toHaveProperty('msg', 'Test message'); // Still added for compatibility
+        expect(result).not.toHaveProperty('app_name');
+        expect(result).not.toHaveProperty('organization_name');
       });
 
-      const result = errorFormatter.format('ERROR', 'Error message');
-      
-      expect(result).toHaveProperty('stack');
-      expect(result.stack).toContain('at LogFormatter._getStackTrace');
-    });
+      it('should preserve custom metadata fields', () => {
+        const metadata = {
+          userId: '123',
+          action: 'login',
+          customField: 'custom value'
+        };
 
-    it('should format object messages as JSON', () => {
-      const objectMessage = { key: 'value', number: 123 };
-      const result = formatter.format('INFO', objectMessage);
-      
-      expect(result.message).toBe('{"key":"value","number":123}');
-      expect(result.msg).toBe('{"key":"value","number":123}');
-    });
+        const result = formatter.format('INFO', 'Test message', metadata);
 
-    it('should handle undefined configuration values gracefully', () => {
-      const minimalFormatter = new LogFormatter({});
-      const result = minimalFormatter.format('INFO', 'Test message');
-      
-      expect(result.application).toBe('unknown');
-      expect(result.environment).toBe('unknown');
-      expect(result.subaccount).toBe('unknown');
-    });
+        expect(result).toMatchObject(metadata);
+        expect(result).toHaveProperty('app_name', 'TestApp'); // BTP mapping still applied
+      });
 
-    it('should not overwrite existing SAP fields in metadata', () => {
-      const metadata = {
-        msg: 'existing msg',
-        app_name: 'existing app',
-        organization_name: 'existing org'
-      };
+      it('should handle correlation ID correctly', () => {
+        const metadata = { correlationId: 'corr-123' };
+        const result = formatter.format('INFO', 'Test message', metadata);
 
-      const result = formatter.format('INFO', 'Test message', metadata);
-      
-      // Should preserve existing values from metadata
-      expect(result.msg).toBe('existing msg');
-      expect(result.app_name).toBe('existing app');
-      expect(result.organization_name).toBe('existing org');
-    });
-  });
+        expect(result.correlationId).toBe('corr-123');
+      });
 
-  describe('_applySAPFieldMapping', () => {
+      it('should handle request ID as correlation ID fallback', () => {
+        const metadata = { requestId: 'req-123' };
+        const result = formatter.format('INFO', 'Test message', metadata);
+
+        expect(result.correlationId).toBe('req-123');
+      });
+
+      it('should prioritize correlation ID over request ID', () => {
+        const metadata = {
+          correlationId: 'corr-123',
+          requestId: 'req-456'
+        };
+        const result = formatter.format('INFO', 'Test message', metadata);
+
+        expect(result.correlationId).toBe('corr-123');
+      });
+
+      it('should add stack trace for ERROR level when enabled', () => {
+        const errorFormatter = new LogFormatter({
+          applicationName: 'TestApp',
+          environment: 'test',
+          subAccountId: 'test-subaccount',
+          includeStackTrace: true
+        });
+
+        const result = errorFormatter.format('ERROR', 'Error message');
+
+        expect(result).toHaveProperty('stack');
+        expect(result.stack).toContain('at LogFormatter._getStackTrace');
+      });
+
+      it('should format object messages as JSON', () => {
+        const objectMessage = { key: 'value', number: 123 };
+        const result = formatter.format('INFO', objectMessage);
+
+        expect(result.message).toBe('{"key":"value","number":123}');
+        expect(result.msg).toBe('{"key":"value","number":123}');
+      });
+
+      it('should handle undefined configuration values gracefully', () => {
+        const minimalFormatter = new LogFormatter({});
+        const result = minimalFormatter.format('INFO', 'Test message');
+
+        expect(result.application).toBe('unknown');
+        expect(result.environment).toBe('unknown');
+        expect(result.subaccount).toBe('unknown');
+      });
+
+      it('should not overwrite existing BTP fields in metadata', () => {
+        const metadata = {
+          msg: 'existing msg',
+          app_name: 'existing app',
+          organization_name: 'existing org'
+        };
+
+        const result = formatter.format('INFO', 'Test message', metadata);
+
+        // Should preserve existing values from metadata
+        expect(result.msg).toBe('existing msg');
+        expect(result.app_name).toBe('existing app');
+        expect(result.organization_name).toBe('existing org');
+      });
+    }); // end describe('BTP Cloud Logging field mapping')
+  }); // end describe('format')
+
+  describe('_applyCloudLoggingFieldMapping', () => {
     it('should map fields correctly when they exist', () => {
       const logEntry = {
         message: 'test message',
@@ -144,14 +146,14 @@ describe('LogFormatter', () => {
         subaccount: 'test subaccount'
       };
 
-      formatter._applySAPFieldMapping(logEntry);
+      formatter._applyCloudLoggingFieldMapping(logEntry);
 
       expect(logEntry.msg).toBe('test message');
       expect(logEntry.app_name).toBe('test app');
       expect(logEntry.organization_name).toBe('test subaccount');
     });
 
-    it('should not overwrite existing SAP fields', () => {
+    it('should not overwrite existing BTP fields', () => {
       const logEntry = {
         message: 'test message',
         msg: 'existing msg',
@@ -159,10 +161,10 @@ describe('LogFormatter', () => {
         app_name: 'existing app'
       };
 
-      formatter._applySAPFieldMapping(logEntry);
+      formatter._applyCloudLoggingFieldMapping(logEntry);
 
       expect(logEntry.msg).toBe('existing msg');
       expect(logEntry.app_name).toBe('existing app');
     });
-  });
-});
+  }); // end describe('_applyCloudLoggingFieldMapping')
+}); // end describe('LogFormatter')
