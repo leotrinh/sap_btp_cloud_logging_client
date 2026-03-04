@@ -11,7 +11,7 @@ npm install sap-btp-cloud-logging-client
 The library is configured primarily through environment variables. These can be set directly in your deployment environment (e.g., Cloud Foundry `manifest.yml`) or loaded from a `.env` file for local development.
 
 ### Required Variables
-These are typically obtained from the Service Key of your SAP Cloud Logging instance.
+These are typically obtained from the Service Key of your BTP Cloud Logging instance.
 
 | Variable | Description |
 |----------|-------------|

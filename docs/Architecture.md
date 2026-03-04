@@ -83,7 +83,7 @@ flowchart TB
         end
     end
 
-    CLS["SAP Cloud Logging Service
+    CLS["BTP Cloud Logging Service
     (Central Instance)"]
 
     ClientA --"BTP_SUBACCOUNT_ID=dev"--> CLS

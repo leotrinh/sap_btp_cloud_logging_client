@@ -1,5 +1,17 @@
 # Changelogs
 
+## v1.0.5
+- **Feature**: Added BTP Cloud Logging field mapping transformation.
+- **Enhancement**: Added `enableSAPFieldMapping` configuration option (default: true).
+- **Enhancement**: Maps internal fields to Cloud Logging Standard Fields:
+  - `message` → `msg` (for BTP Cloud Logging)
+  - `application` → `app_name` (for BTP Cloud Logging)
+  - `subaccount` → `organization_name` (for BTP Cloud Logging)
+- **Enhancement**: Maintains backward compatibility - both old and new fields present.
+- **Enhancement**: Preserves custom metadata and existing SAP fields.
+- **Documentation**: Added BTP Cloud Logging guide and demo examples.
+- **Tests**: Added comprehensive unit tests for field mapping functionality.
+
 ## v1.0.4
 - **Documentation**: Updated README project structure and fixed Usage guide default values.
 - **Refactor**: Excluded internal review docs from npm package to reduce size.

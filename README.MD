@@ -13,6 +13,11 @@ Example: Your System Landscape with 3 global account (2 CPEA, 1 PAYG)
 ├── Global PAYG/
 │   └── Sub Account D using Cloud Logging via sap-btp-cloud-logging-client
 ```
+## Ship with Claude Kit
+Ship Faster With AI Dev Teams
+[Buy here to save 25% (always) ](https://claudekit.cc/?ref=VAK416FU)
+[https://claudekit.cc/?ref=VAK416FU]()
+![https://claudekit.cc/?ref=VAK416FU](https://cdn.tinhtd.info/public/go1/ads_ck.png)
 
 ## Documentation
 - [**Architecture & Design**](docs/Architecture.md) - Internal components and multi-subaccount patterns.
