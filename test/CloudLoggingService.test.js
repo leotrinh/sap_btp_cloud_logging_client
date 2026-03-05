@@ -59,7 +59,8 @@ describe('CloudLoggingService', () => {
           url: mockConfig.ingestEndpoint,
           data: expect.objectContaining({
             level: 'INFO',
-            message: 'Test message',
+            msg: 'Test message', // Updated to expect msg field instead of message
+            userId: 'user123'
           }),
         })
       );
@@ -74,6 +75,8 @@ describe('CloudLoggingService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             level: 'ERROR',
+            msg: 'Error message', // Updated to expect msg field
+            errorCode: 'E001'
           }),
         })
       );
@@ -96,8 +99,8 @@ describe('CloudLoggingService', () => {
         expect.objectContaining({
           url: mockConfig.ingestEndpoint,
           data: expect.arrayContaining([
-            expect.objectContaining({ level: 'INFO', message: 'Message 1' }),
-            expect.objectContaining({ level: 'WARN', message: 'Message 2' }),
+            expect.objectContaining({ level: 'INFO', msg: 'Message 1' }),
+            expect.objectContaining({ level: 'WARN', msg: 'Message 2' }),
           ]),
         })
       );
