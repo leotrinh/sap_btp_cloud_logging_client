@@ -37,6 +37,7 @@
         "lint:fix": "eslint . --fix",
         "build": "tsc",
         "pub:dry": "npm publish --dry-run",
+        "check":"npm run build && npm run lint && npm run test",
         "m:publish": "npm run pub:dry && npm publish",
         "m:prepublishOnly": "npm test && npm run lint"
     },
