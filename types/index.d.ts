@@ -40,6 +40,10 @@ export interface CloudLoggingConfig {
 
 	// BTP Cloud Logging field mapping
 	enableSAPFieldMapping?: boolean; // Default: true
+	removeOriginalFieldsAfterMapping?: boolean; // Default: true
+
+	// Error handling
+	preventUncaughtExceptions?: boolean; // Default: true
 
 	// Fallback options
 	fallbackToConsole?: boolean;
@@ -84,11 +88,11 @@ export interface ServiceKey {
 export interface FormattedLogEntry {
 	timestamp: string;
 	level: string;
-	message: string;
+	message?: string; // Made optional to allow deletion
 	msg: string; // Add msg field for SAP BTP Cloud Logging filtering
-	application: string;
+	application?: string; // Made optional to allow deletion
 	environment: string;
-	subaccount: string;
+	subaccount?: string; // Made optional to allow deletion
 	hostname: string;
 	pid: number;
 	correlationId?: string;

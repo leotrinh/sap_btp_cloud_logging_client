@@ -13,9 +13,9 @@ Example: Your System Landscape with 3 global account (2 CPEA, 1 PAYG)
 ├── Global PAYG/
 │   └── Sub Account D using Cloud Logging via sap-btp-cloud-logging-client
 ```
-## Ship with Claude Kit
-Ship Faster With AI Dev Teams
-[Buy here to save 25% (always) ](https://claudekit.cc/?ref=VAK416FU)
+## Ship by Claude Kit
+Ship faster With AI Dev Team
+[DISCOUNT 25% - PAY ONE TIME, LIFETIME UPGRADE ](https://claudekit.cc/?ref=VAK416FU)
 ![https://claudekit.cc/?ref=VAK416FU](https://cdn.tinhtd.info/public/go1/ads_ck.png)
 
 ## Documentation
@@ -119,9 +119,71 @@ const logger = createLogger({
   password: 'your-password',
   applicationName: 'my-app',
   subaccountId: 'subaccount-b',
-  environment: 'production'
+  environment: 'production',
+  enableSAPFieldMapping: true, // Enable BTP Cloud Logging field mapping
+  removeOriginalFieldsAfterMapping: true // Remove original fields after mapping (default: true)
 });
 ```
+
+### BTP Cloud Logging Field Mapping (v1.0.7+)
+
+This library supports automatic field mapping to SAP BTP Cloud Logging standard fields:
+
+#### Default Behavior (Clean Logs)
+```javascript
+const logger = createLogger({
+  applicationName: 'MyApp',
+  subaccountId: 'my-subaccount',
+  enableSAPFieldMapping: true
+  // removeOriginalFieldsAfterMapping: true (default)
+});
+
+// Log entry sent to Cloud Logging:
+{
+  "msg": "User login successful",           // BTP standard field
+  "app_name": "MyApp",                    // BTP standard field  
+  "organization_name": "my-subaccount",     // BTP standard field
+  "level": "INFO",
+  "timestamp": "2026-03-05T12:00:00.000Z"
+  // Original fields (message, application, subaccount) are removed
+}
+```
+
+#### Backward Compatibility Mode
+```javascript
+const logger = createLogger({
+  applicationName: 'MyApp',
+  subaccountId: 'my-subaccount',
+  enableSAPFieldMapping: true,
+  removeOriginalFieldsAfterMapping: false // Keep original fields
+});
+
+// Log entry sent to Cloud Logging:
+{
+  "message": "User login successful",        // Original field
+  "msg": "User login successful",           // BTP standard field
+  "application": "MyApp",                  // Original field
+  "app_name": "MyApp",                    // BTP standard field
+  "subaccount": "my-subaccount",           // Original field
+  "organization_name": "my-subaccount",     // BTP standard field
+  "level": "INFO",
+  "timestamp": "2026-03-05T12:00:00.000Z"
+}
+```
+
+#### Field Mapping Table
+| Original Field | BTP Standard Field | Description |
+|---------------|-------------------|-------------|
+| `message` | `msg` | Log message content |
+| `application` | `app_name` | Application name |
+| `subaccount` | `organization_name` | Subaccount/organization ID |
+
+#### Configuration Options
+- **`enableSAPFieldMapping`** (boolean, default: `true`)
+  - Enable/disable BTP Cloud Logging field mapping
+- **`removeOriginalFieldsAfterMapping`** (boolean, default: `true`)
+  - Remove original fields after mapping to prevent duplicates
+  - Set to `false` for backward compatibility
 
 ### Implementation
 #### Basic
