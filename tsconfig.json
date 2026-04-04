@@ -5,6 +5,7 @@
         "noEmit": true,
         "esModuleInterop": true,
         "strict": true,
+        "noImplicitAny": false,
         "moduleResolution": "node",
         "target": "ES2020"
     },
