@@ -56,6 +56,68 @@ const logger = createLogger();
 logger.info('User logged in', { userId: 'u-123' });
 ```
 
+## Logger & LogUtils (v1.0.8+)
+
+Built-in structured domain logger — no need to copy LogUtils manually to each project.
+
+### logUtils Singleton
+
+```js
+const { logUtils } = require('sap-btp-cloud-logging-client');
+
+// Standard
+logUtils.info('msg');
+logUtils.warn('msg', { extra: 'data' });
+logUtils.error('msg', new Error('reason'));       // Error object extracts message+stack
+logUtils.error('msg', { key: 'val' });            // or plain metadata
+
+// API logs
+logUtils.apiInfo('Request received', { source: 'WebhookSrv', endpoint: '/hook', statusCode: 200 });
+logUtils.apiError('Request failed', error, { endpoint: '/hook' });
+
+// Event logs
+logUtils.eventInfo('Order.Created received', { eventType: 'WEBHOOK', entityId: 'PO-001' });
+logUtils.eventError('Sync failed', error, { eventName: 'RiskScore.Changed' });
+
+// Base/System logs
+logUtils.baseInfo('Migration done', { component: 'MigrationSrv', action: 'migrate' });
+logUtils.baseError('Cache flush failed', error, { component: 'CacheSrv' });
+```
+
+### Custom Instance
+
+```js
+const { LogUtils } = require('sap-btp-cloud-logging-client');
+const myLogger = new LogUtils(); // fresh instance with its own BTP Cloud Logger init
+```
+
+### sanitize — Redact Sensitive Fields
+
+```js
+const { sanitize } = require('sap-btp-cloud-logging-client');
+
+const safe = sanitize({ userId: 'u-1', password: 'secret', token: 'Bearer xyz' });
+// → { userId: 'u-1', password: '[REDACTED]', token: '[REDACTED]' }
+```
+
+Redacted keys: `password`, `token`, `secret`, `authorization`, `apikey`, `api_key`,
+`client_secret`, `access_token`, `refresh_token`, `cookie`, `session`, `credential`,
+`private_key`, `ingest-password`, `dashboards-password`, `client-ca`, `server-ca`,
+`ingest-mtls-key`, `ingest-mtls-cert`
+
+### Logger — Console Fallback
+
+```js
+const { Logger } = require('sap-btp-cloud-logging-client');
+
+Logger.info('msg', { meta: 'data' });
+Logger.error('msg', { context: 'startup' });
+Logger.warn('msg');
+Logger.debug('msg'); // skipped in production (NODE_ENV=production)
+```
+
+---
+
 ## Advanced Features
 
 ### 1. Log Level Filtering
