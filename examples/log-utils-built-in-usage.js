@@ -19,52 +19,52 @@ logUtils.debug('Config loaded', { env: process.env.NODE_ENV });
 
 // Error with Error object (extracts message + stack automatically)
 try {
-    throw new Error('DB connection timeout');
+  throw new Error('DB connection timeout');
 } catch (err) {
-    logUtils.error('OrderService - fetchOrders failed', err, { orderId: 'ORD-001' });
+  logUtils.error('OrderService - fetchOrders failed', err, { orderId: 'ORD-001' });
 }
 
 // ─── API Logs ─────────────────────────────────────────────────────────────
 
 logUtils.apiInfo('POST /orders received', {
-    source: 'OrderService',
-    endpoint: '/orders',
-    method: 'POST',
-    statusCode: 201,
-    correlationId: 'req-abc-123'
+  source: 'OrderService',
+  endpoint: '/orders',
+  method: 'POST',
+  statusCode: 201,
+  correlationId: 'req-abc-123'
 });
 
 logUtils.apiError('GET /suppliers failed', new Error('Timeout'), {
-    source: 'SupplierService',
-    endpoint: '/suppliers',
-    statusCode: 503
+  source: 'SupplierService',
+  endpoint: '/suppliers',
+  statusCode: 503
 });
 
 // ─── Event Logs ───────────────────────────────────────────────────────────
 
 logUtils.eventInfo('PurchaseOrder.Created event received', {
-    eventName: 'PurchaseOrder.Created',
-    eventType: 'WEBHOOK',
-    entityId: 'PO-4500012345',
-    entityType: 'PO'
+  eventName: 'PurchaseOrder.Created',
+  eventType: 'WEBHOOK',
+  entityId: 'PO-4500012345',
+  entityType: 'PO'
 });
 
 logUtils.eventError('RiskScore sync failed', new Error('API unavailable'), {
-    eventName: 'RiskScore.Changed',
-    entityId: 'SUPPLIER-001'
+  eventName: 'RiskScore.Changed',
+  entityId: 'SUPPLIER-001'
 });
 
 // ─── Base/System Logs ─────────────────────────────────────────────────────
 
 logUtils.baseInfo('DB migration completed', {
-    component: 'MigrationService',
-    action: 'migrate',
-    module: 'db'
+  component: 'MigrationService',
+  action: 'migrate',
+  module: 'db'
 });
 
 logUtils.baseError('Cache flush failed', new Error('Redis unavailable'), {
-    component: 'CacheService',
-    action: 'flush'
+  component: 'CacheService',
+  action: 'flush'
 });
 
 // ─── Console fallback Logger (direct) ────────────────────────────────────
@@ -75,10 +75,10 @@ Logger.error('Direct error log', { context: 'startup' });
 // ─── Sanitize utility ─────────────────────────────────────────────────────
 
 const payload = {
-    userId: 'u-123',
-    password: 'secret123',       // → [REDACTED]
-    token: 'Bearer abc',         // → [REDACTED]
-    nested: { apikey: 'key99' }  // → [REDACTED]
+  userId: 'u-123',
+  password: 'secret123',       // → [REDACTED]
+  token: 'Bearer abc',         // → [REDACTED]
+  nested: { apikey: 'key99' }  // → [REDACTED]
 };
 console.log('Sanitized payload:', sanitize(payload));
 
