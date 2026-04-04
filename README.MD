@@ -34,6 +34,8 @@ sap-btp-cloud-logging-client/
 │   ├── CloudLoggingService.js
 │   ├── ConfigManager.js
 │   ├── LogFormatter.js
+│   ├── Logger.js              ← console fallback + sanitize (v1.0.8+)
+│   ├── LogUtils.js            ← domain logger singleton (v1.0.8+)
 │   ├── Transport.js
 │   ├── Middleware.js
 │   ├── WinstonTransport.js
@@ -201,31 +203,85 @@ import { createLogger, middleware as loggingMiddleware } from 'sap-btp-cloud-log
 const logger = createLogger();
 logger.info('Hello from BTP Cloud Logging!');
 ```
-or can create a standard common class (Singleton pattern) for using:
-> **Check full example code at:** [examples/utils/LogUtils.ts](examples/utils/LogUtils.ts)
 
+---
+
+## Logger & LogUtils (v1.0.8+)
+
+Built-in structured domain logger with console fallback and sensitive data redaction.
+**No need to copy LogUtils manually** — it's now bundled in the package.
+
+> **Full example:** [examples/log-utils-built-in-usage.js](examples/log-utils-built-in-usage.js)
+
+### Quick Start
+
+**JavaScript**
+```js
+const { logUtils, Logger, sanitize } = require('sap-btp-cloud-logging-client');
+
+// Standard
+logUtils.info('Application started');
+logUtils.error('Order failed', new Error('Timeout'), { orderId: 'ORD-001' });
+
+// API log
+logUtils.apiInfo('POST /orders received', { source: 'OrderService', statusCode: 201 });
+logUtils.apiError('GET /suppliers failed', new Error('503'), { endpoint: '/suppliers' });
+
+// Event log
+logUtils.eventInfo('PurchaseOrder.Created received', { eventType: 'WEBHOOK', entityId: 'PO-001' });
+
+// Base/System log
+logUtils.baseInfo('DB migration done', { component: 'MigrationService', action: 'migrate' });
+logUtils.baseError('Cache flush failed', new Error('Redis down'), { component: 'CacheService' });
+```
+
+**TypeScript**
 ```typescript
-import { LogUtils }  from './utils/LogUtils';
+import { logUtils, LogUtils, Logger, sanitize, LogApiOptions } from 'sap-btp-cloud-logging-client';
 
-// Get instance (Singleton)
-const logger = LogUtils.getInstance();
+logUtils.apiInfo('Request received', { source: 'WebhookService', endpoint: '/webhook' });
+logUtils.baseError('Startup failed', new Error('Config missing'), { component: 'App' });
 
-// Usage
-logger.info('System initialized');
+// Custom instance (own BTP Cloud Logger init)
+const myLogger = new LogUtils();
+myLogger.eventInfo('Event processed', { eventName: 'Order.Created', entityId: 'ORD-001' });
+```
 
-// API Logging
-logger.apiInfo('User login', {
-    source: 'AuthService',
-    userId: 'user-123',
-    statusCode: 200
-});
+### Sanitize — Redact Sensitive Fields
 
-// Scheduler Logging
-logger.schedulerInfo('Daily sync started', {
-    jobName: 'SyncJob',
-    jobId: 'job-001'
+```js
+const { sanitize } = require('sap-btp-cloud-logging-client');
+
+const safe = sanitize({
+    userId: 'u-123',
+    password: 'secret',   // → [REDACTED]
+    token: 'Bearer xyz',  // → [REDACTED]
+    nested: { apikey: 'key' }  // → [REDACTED]
 });
 ```
+
+### Logger — Console Fallback (Direct Use)
+
+```js
+const { Logger } = require('sap-btp-cloud-logging-client');
+
+Logger.info('Direct console log');
+Logger.error('Startup error', { context: 'init' });
+```
+
+### How It Works
+
+```
+logUtils.apiInfo(...)
+    │
+    ├─► BTP Cloud Logger (primary)   — sends to Cloud Logging OpenSearch
+    └─► Logger/console (fallback)    — always printed locally
+         └─► sanitize()              — redacts tokens/passwords before output
+```
+
+- BTP Cloud Logger init retries **3 times** (2s delay) before falling back to console-only
+- All metadata is sanitized before logging (passwords, tokens, secrets → `[REDACTED]`)
+- `logUtils` is a **singleton** — shared across the app; use `new LogUtils()` for isolated instances
 ### Middleware Configuration
 You can configure the Express middleware to exclude paths or toggle logging:
 

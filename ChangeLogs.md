@@ -1,5 +1,30 @@
 # Changelogs
 
+## v1.0.8
+- **Feature**: Bundled `Logger` and `LogUtils` directly into the package — no need to copy them manually to each project.
+- **Feature**: Added `Logger` — console-based fallback logger with timestamp formatting. Used internally by `LogUtils` when BTP Cloud Logger is unavailable.
+- **Feature**: Added `LogUtils` — structured domain logger with BTP Cloud Logger as primary and `Logger` as fallback. Includes retry logic (3 attempts, 2s delay) on init failure.
+- **Feature**: Added `sanitize()` utility — recursively redacts sensitive fields (`password`, `token`, `secret`, `authorization`, `apikey`, `api_key`, `access_token`, `cookie`, etc.) from objects before logging. Depth-limited to prevent performance issues on large payloads.
+- **Feature**: Domain-specific log methods: `apiInfo/apiError`, `eventInfo/eventError`, `baseInfo/baseError`, `logApi`, `logEvent`, `logBase`.
+- **Exports**: New named exports: `logUtils` (singleton), `LogUtils` (class), `Logger`, `sanitize`, `createLogUtils`.
+- **TypeScript**: Full type declarations for all new exports (`ConsoleLogger`, `LogUtils`, `LogApiOptions`, `LogEventOptions`, `LogBaseOptions`, `LogLevel`).
+- **Documentation**: Updated README with `## Logger & LogUtils (v1.0.8+)` section.
+- **Documentation**: Updated `docs/Usage.md` with Logger/LogUtils usage guide.
+- **Example**: Added `examples/log-utils-built-in-usage.js` demonstrating all new APIs.
+
+## v1.0.7
+- **Feature**: Added `removeOriginalFieldsAfterMapping` config option (default: `true`) — removes original fields (`message`, `application`, `subaccount`) after BTP field mapping to prevent duplicates.
+- **Enhancement**: Improved BTP Cloud Logging field mapping logic.
+- **Fix** *(CRITICAL)*: Metadata override bug — user metadata was being overwritten by default values.
+- **Fix**: TypeScript compilation errors for dynamic property assignments.
+- **Fix**: Inconsistent field mapping behavior when metadata contains BTP fields.
+- **Tests**: Added edge case test suite — null/undefined values, circular references, extreme string lengths, metadata override scenarios.
+- **Breaking**: Default behavior now removes original fields after mapping. Set `removeOriginalFieldsAfterMapping: false` to keep old behavior.
+
+## v1.0.6
+- **Feature**: Initial BTP Cloud Logging field mapping integration.
+- **Enhancement**: Basic SAP field mapping support (`message` → `msg`, `application` → `app_name`, `subaccount` → `organization_name`).
+
 ## v1.0.5
 - **Feature**: Added BTP Cloud Logging field mapping transformation.
 - **Enhancement**: Added `enableSAPFieldMapping` configuration option (default: true).

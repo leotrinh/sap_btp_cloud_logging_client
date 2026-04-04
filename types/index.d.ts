@@ -153,3 +153,73 @@ export declare class BTPCloudLoggingTransport {
 
 export declare function createLogger(config?: CloudLoggingConfig): CloudLoggingService;
 export declare function middleware(logger: CloudLoggingService, options?: MiddlewareOptions): Function;
+// ─── Logger (console fallback) ────────────────────────────────────────────
+
+export interface ConsoleLogger {
+	info(message: string, metadata?: object): void;
+	error(message: string, metadata?: object): void;
+	warn(message: string, metadata?: object): void;
+	debug(message: string, metadata?: object): void;
+}
+
+export declare const Logger: ConsoleLogger;
+export declare function sanitize(obj: any, depth?: number): any;
+
+// ─── LogUtils (domain logger) ─────────────────────────────────────────────
+
+export type LogLevel = 'info' | 'error' | 'warn' | 'debug';
+
+export interface LogApiOptions {
+	source?: string;
+	endpoint?: string;
+	method?: string;
+	statusCode?: number;
+	sourceSystem?: string;
+	correlationId?: string;
+	duration?: number;
+	includePayload?: boolean;
+	payload?: any;
+	includeResponse?: boolean;
+	response?: any;
+}
+
+export interface LogEventOptions {
+	eventName?: string;
+	eventId?: string;
+	eventSource?: string;
+	eventType?: string;
+	entityId?: string;
+	entityType?: string;
+	userId?: string;
+	includeData?: boolean;
+	data?: any;
+}
+
+export interface LogBaseOptions {
+	component?: string;
+	action?: string;
+	module?: string;
+	custom?: Record<string, any>;
+}
+
+export declare class LogUtils {
+	constructor();
+	log(level: LogLevel, message: string, metadata?: object): void;
+	info(message: string, metadata?: object): void;
+	error(message: string, errorOrMeta?: Error | object, metadata?: object): void;
+	warn(message: string, metadata?: object): void;
+	debug(message: string, metadata?: object): void;
+	setLoggingLevel(level: string): void;
+	logApi(level: LogLevel, message: string, options?: LogApiOptions): void;
+	apiInfo(message: string, options?: LogApiOptions): void;
+	apiError(message: string, error: Error, options?: LogApiOptions): void;
+	logEvent(level: LogLevel, message: string, options?: LogEventOptions): void;
+	eventInfo(message: string, options?: LogEventOptions): void;
+	eventError(message: string, error: Error, options?: LogEventOptions): void;
+	logBase(level: LogLevel, message: string, options?: LogBaseOptions): void;
+	baseInfo(message: string, options?: LogBaseOptions): void;
+	baseError(message: string, error: Error, options?: LogBaseOptions): void;
+}
+
+export declare const logUtils: LogUtils;
+export declare function createLogUtils(): LogUtils;
