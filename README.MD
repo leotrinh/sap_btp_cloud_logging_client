@@ -323,22 +323,289 @@ async function batchLogging() {
   await logger.logBatch(entries);
 }
 ```
-### Dashboard & Discovery Logs
-#### Cloud Logging Open Search Dashboard
-- The url/ credential to access Dashboard inside Service Key you will see
+## Dashboard, Discovery, and Property Filtering
 
-```
-"dashboards-endpoint": "dashboards-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
-"dashboards-password": "<sensitive>",
-"dashboards-username": "<sensitive>",
-```
-Using browser to visit url: ```dashboards-endpoint``` and cred (username, password) above
+### Access the Cloud Logging OpenSearch Dashboard
 
-- Discovery Logs: from the dashboard click to Discovery menu on the left side
+The dashboard endpoint and credentials are available in the SAP Cloud Logging service key:
+
+```json
+{
+  "dashboards-endpoint": "dashboards-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
+  "dashboards-password": "<sensitive>",
+  "dashboards-username": "<sensitive>"
+}
+```
+
+Open the value of `dashboards-endpoint` in a browser and sign in with
+`dashboards-username` and `dashboards-password`.
+
+From the left navigation, open **Discover**:
+
 ![Discovery Logs](docs/static/discovery-log.png)
-Then you should filter by ```logs-json-*```
+
+Select the `logs-json-*` index pattern:
+
 ![logs-json-*](docs/static/discovery-logs-json.png)
-here you can filter data by sub account, application...etc
+
+You can then search and filter logs by fields such as `app_name`,
+`organization_name`, `environment`, `level`, and your custom metadata.
+
+### Custom Properties Are Visible but Cannot Be Filtered
+
+```
+Management
+  → Dashboards Management
+    → Index Patterns
+      → logs-json-*
+        → Refresh field list
+```
+A structured property may already be present in the expanded JSON document but
+still show a warning such as:
+
+> No cached mapping for this field. Refresh field list from the Management >
+> Index Patterns page.
+
+This normally means that the document was ingested successfully, but the
+`logs-json-*` index pattern has not refreshed its cached field definitions.
+
+#### Refresh the Index Pattern Field List
+
+In OpenSearch Dashboards, go to:
+
+```text
+Dashboards Management
+  -> Index Patterns
+    -> logs-json-*
+      -> Refresh field list
+```
+
+After refreshing:
+
+1. Return to **Discover**.
+2. Reload the page.
+3. Select `logs-json-*` again if necessary.
+4. Expand a recent log document and verify that the warning icon is gone.
+
+The exact menu wording may vary slightly between OpenSearch Dashboards
+versions.
+
+### Filter Examples
+
+For exact matching on string properties, prefer the `.keyword` field:
+
+```text
+app_name.keyword: "sample_integration_srv"
+```
+
+```text
+environment.keyword: "production"
+```
+
+```text
+organization_name.keyword: "sample-subaccount"
+```
+
+```text
+source_system.keyword: "S4H_DEMO"
+```
+
+Nested metadata can be filtered by its full path:
+
+```text
+payload.user.keyword: "leo"
+```
+
+Numeric properties do not normally need `.keyword`:
+
+```text
+pid: 226
+```
+
+You can also use **Add filter** in Discover and select the field, operator, and
+value from the UI.
+
+### Why `.keyword` Is Recommended
+
+OpenSearch commonly exposes string values in two forms:
+
+- `<field>` is usually a `text` field for full-text search.
+- `<field>.keyword` is used for exact matching, filtering, sorting, and
+  aggregations.
+
+For example:
+
+```text
+msg: "destination"
+```
+
+is suitable for searching message text, while:
+
+```text
+app_name.keyword: "my-app"
+```
+
+is better for selecting one exact application.
+
+If a `.keyword` variant is not available, try the original field:
+
+```text
+app_name: "my-app"
+```
+
+Then inspect the field definition under:
+
+```text
+Dashboards Management -> Index Patterns -> logs-json-*
+```
+
+Check that the field is:
+
+- **Searchable**
+- **Aggregatable** when it must be used in dashboards or aggregations
+- Mapped to the expected type, such as `keyword`, `text`, `number`, or `date`
+
+### Diagnose Mapping Conflicts
+
+OpenSearch requires a property to keep a compatible data type across indexes.
+For example, avoid sending the same property as both a number and a string:
+
+```javascript
+// First log
+logger.info('Order created', { entity_id: 123 });
+
+// Later log: avoid changing the same field to a string
+logger.info('Order updated', { entity_id: '123' });
+```
+
+Also avoid changing a property from a primitive value to an object:
+
+```javascript
+// First log
+logger.info('Payload received', { payload: 'raw text' });
+
+// Later log: mapping conflict risk
+logger.info('Payload received', {
+  payload: {
+    id: 'PO-001'
+  }
+});
+```
+
+Use different, explicit field names when the values represent different types:
+
+```javascript
+logger.info('Payload received', {
+  entity_id_number: 123,
+  payload_text: 'raw text'
+});
+```
+
+If you have permission to use **Dev Tools**, inspect field capabilities across
+the rollover indexes:
+
+```http
+GET logs-json-*/_field_caps?fields=app_name,environment,source_system,payload.*
+```
+
+The response shows the detected type of each field and whether it is
+searchable or aggregatable. Multiple types for the same property usually
+indicate inconsistent data sent by different applications or package versions.
+
+### Recommended Metadata Design
+
+Keep custom metadata predictable and type-safe:
+
+```javascript
+logger.info('Retrieving destination', {
+  component: 'BTPDestBase',
+  operation: 'retrieve_destination',
+  destination_name: 'po_odata_dest_cfg',
+  source_system: 'S4H_DEMO',
+  retry_count: 0,
+  success: true
+});
+```
+
+Recommended practices:
+
+- Keep the same field type across all log messages and application versions.
+- Use stable property names instead of generating property names dynamically.
+- Do not reuse one field as both a string and an object.
+- Avoid overriding standard logging fields through custom metadata.
+- Prefer IDs, status values, component names, and operation names as separate
+  searchable fields instead of embedding everything inside `msg`.
+- Avoid shipping secrets, passwords, tokens, authorization headers, or full
+  service-key credentials.
+- Use `sanitize()` or the built-in `LogUtils` helpers before logging sensitive
+  application objects.
+
+Treat these fields as reserved package or SAP logging fields:
+
+```text
+date
+timestamp
+@timestamp
+msg
+message
+level
+app_name
+application
+organization_name
+subaccount
+environment
+hostname
+pid
+```
+
+### Event Timestamp Note
+
+The current package examples use `timestamp`. SAP Cloud Logging's JSON ingest
+API recognizes `date` as the event-time field used when indexing a document.
+When `date` cannot be extracted, Cloud Logging uses the time at which the
+payload is parsed.
+
+For a custom formatter or a future package version, a backward-compatible
+payload may include both fields:
+
+```json
+{
+  "date": "2026-07-20T10:24:35.987Z",
+  "timestamp": "2026-07-20T10:24:35.987Z",
+  "msg": "[BTPDestBase] Retrieving destination",
+  "level": "INFO",
+  "app_name": "sample_integration_srv",
+  "environment": "production",
+  "organization_name": "sample-subaccount",
+  "destination_name": "po_odata_dest_cfg"
+}
+```
+
+Do not assume that adding `date` is already supported by every released package
+version. Verify the formatter output before depending on this field.
+
+### Troubleshooting Checklist
+
+When a property cannot be filtered:
+
+1. Confirm that the property exists in the expanded JSON document.
+2. Confirm that Discover is using `logs-json-*`.
+3. Refresh the `logs-json-*` field list.
+4. Reload Discover and retry the filter with `<field>.keyword`.
+5. Inspect whether the field is searchable and aggregatable.
+6. Check `_field_caps` for inconsistent types across indexes.
+7. Verify that all applications send the property with the same data type.
+8. Use a new field name if an old mapping is already incompatible.
+
+Existing indexed field mappings generally cannot be safely changed in place.
+Using a new field name is often the safest application-side solution when old
+indexes already contain a conflicting type.
+
+### References
+
+- [SAP Cloud Logging: OpenSearch Dashboards UI](https://help.sap.com/docs/cloud-logging/cloud-logging/opensearch-dashboards-ui)
+- [SAP Cloud Logging: Ingest via JSON API Endpoint](https://help.sap.com/docs/cloud-logging/cloud-logging/ingest-via-json-api-endpoint)
+- [OpenSearch: Field Capabilities API](https://docs.opensearch.org/latest/api-reference/search-apis/field-caps/)
 
 ## Contributors
 We want to make contributing to this project as easy and transparent as possible. So, just simple do the change then create PR
