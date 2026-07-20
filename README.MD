@@ -591,7 +591,7 @@ When a property cannot be filtered:
 1. Confirm that the property exists in the expanded JSON document.
 2. Confirm that Discover is using `logs-json-*`.
 3. Refresh the `logs-json-*` field list.
-4. Reload Discover and retry the filter with `<field>.keyword`.
+4. Reload Discover and retry the filter with `<field>.keyword` -> ex: ```app_name.keyword: "sample_integration_hub_srv"```
 5. Inspect whether the field is searchable and aggregatable.
 6. Check `_field_caps` for inconsistent types across indexes.
 7. Verify that all applications send the property with the same data type.
