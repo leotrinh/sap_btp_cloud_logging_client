@@ -1,5 +1,27 @@
 # Changelogs
 
+## v1.1.0
+
+Hardening pass. **No breaking change** — every default is preserved and no call signature moved. Audit and remediation plan: `docs/plan/package-hardening-and-cap-integration-2026-10-05.md`.
+
+### Fixed
+- **The package no longer replaces the application's process listeners.** `_setupGlobalErrorHandling()` previously called `process.removeAllListeners('uncaughtException')` and `removeAllListeners('unhandledRejection')`, silently discarding every handler registered by the application, by CAP, and by any APM or crash reporter, then forwarding only to the first handler captured at construction time. Listeners are now added alongside existing ones and never removed. Applications that had their own handler get it back. Applications that had none see no change either: an error that is not ours is re-thrown when no other listener is registered, so the process still crashes exactly as it would without this package — Node keeps a process alive while any listener exists, so returning silently there would have left a zombie behind an unrelated bug.
+- **Process listeners are registered once per process, not once per instance.** Creating several `CloudLoggingService` instances added a pair of listeners each time. The previous `removeAllListeners` call hid this by wiping the slate on every construction; without it the leak would surface as Node's `MaxListenersExceededWarning` after ten instances.
+- **The raw request object no longer reaches the shipped payload.** `LogFormatter` extracted a safe subset into `request` but left the original `req` on the entry, so each log either failed to serialize (HTTP request objects are circular) and burned the retry budget, or shipped request headers — `authorization` and `cookie` included — to the log store.
+- **Metadata keyed `req` that is not a request is preserved instead of crashing.** `_formatRequest()` called `req.get(...)` unconditionally, so a consumer logging `{ req: 'GET /orders' }` hit a `TypeError`. Non-request values now stay ordinary metadata.
+- **Cloud logging failures are no longer swallowed silently.** `LogUtils.log()` caught every error from the cloud path with an empty `catch {}`, so a consumer saw healthy console output while nothing reached Cloud Logging. Failures are now reported through the console fallback, throttled to one message per minute per distinct error. Asynchronous rejections from the cloud methods — which never reached that `catch` at all — are captured too.
+
+### Changed
+- **Redaction now applies to both public entry points.** `sanitize()` ran only inside `LogUtils`; the documented `createLogger()` path performed no redaction at all. It now runs in `LogFormatter.format()`, which both paths pass through.
+- **New `sanitizeMetadata` option** (default `true`, env `BTP_LOGGING_SANITIZE_METADATA`). Escape hatch for consumers whose own field names collide with the substring-matched redaction list — for example `tokenCount` or `passwordPolicy` — and who need the raw values on the `createLogger()` path.
+
+### Deprecated
+- **`preventUncaughtExceptions` still defaults to `true`, and that default becomes `false` in 2.0.0.** Process-level error handling belongs to the application. Set the option explicitly to pin current behaviour across the 2.0.0 upgrade. Note that while enabled, Node will not terminate on an uncaught exception, because a listener is registered.
+
+### Tests
+- Added `test/Logger.test.js`, `test/LogUtils.test.js` and `test/ProcessSafety.test.js` — `sanitize` and `LogUtils` previously had no test coverage despite holding most of the package's logic. Suite grew from 53 to 85 tests.
+- Replaced the `NetworkErrorHandling` assertion on `_originalHandlers`, which covered the listener-replacement mechanism that has been removed, with one asserting that application listeners survive.
+
 ## v1.0.8
 - **Feature**: Bundled `Logger` and `LogUtils` directly into the package — no need to copy them manually to each project.
 - **Feature**: Added `Logger` — console-based fallback logger with timestamp formatting. Used internally by `LogUtils` when BTP Cloud Logger is unavailable.
