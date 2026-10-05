@@ -248,6 +248,22 @@ Both columns are measured from bytes each package actually shipped, not read fro
 
 Every rename above is breaking and belongs in the single 2.0.0 batch, not in 1.1.0.
 
+### B4 — No service-binding resolution, in a landscape built on service bindings
+
+The deployment topology (`docs/Architecture.md`) has every application outside the entitlement-holding subaccount reaching the central instance through a **UPS or binding**. This package reads no binding at all — `grep VCAP` across `lib/`, `index.js` and `types/` returns nothing. Its three resolution sources are:
+
+1. `userConfig` passed to the constructor
+2. `BTP_LOGGING_SRV_KEY_CRED` — the whole service-key JSON in one env var, parsed by `ConfigManager._resolveBaseConfig()` and mapped by `fromServiceKey()`
+3. discrete `BTP_LOGGING_*` env vars
+
+So the prescribed deployment mechanism is the one path not supported. A consumer must lift the UPS credentials into an env var by hand, which in Cloud Foundry means either a manifest `env:` block holding the ingest password — defeating the point of the UPS, since the secret then sits in the manifest and in `cf env` output instead of only in the binding — or a bespoke startup script that parses `VCAP_SERVICES` for them.
+
+The fix is small because the shapes already line up: a UPS is created from the service key (`cf cups CENTRAL-LOGGING -p '<service-key-json>'`), so its `credentials` object is exactly what `fromServiceKey()` already accepts. Add a resolution source that scans `VCAP_SERVICES` — `user-provided` entries **and** any managed `cloud-logging` binding — for a credentials object carrying `ingest-endpoint`, and feed it through the existing mapper. Additive and non-breaking: it sits below `userConfig` and above nothing, firing only where today the package finds no configuration at all.
+
+Related finding from the Java package (2026-10-05): its resolver read only the managed `cloud-logging` label, so in this topology it silently resolved nothing for three of the four subaccounts. Ours cannot have that specific bug — it never looks at `VCAP_SERVICES` — but the user-visible symptom is the same, and worse here, because there is no binding path to be wrong about. Checked while reviewing this: the `console.error` on a malformed `BTP_LOGGING_SRV_KEY_CRED` does **not** echo credential content — verified against truncated, unquoted and trailing-garbage service-key JSON on Node 22, where the parse error carries no snippet of the input.
+
+**Phase 2**, alongside the other configuration and boot work.
+
 ### B2 — No sampling or rate limiting
 
 A loop that logs inside a request handler can saturate the ingest quota, and on a shared instance it evicts other tenants' data through size-based curation. A simple per-level token bucket with a `logs dropped` counter would bound the damage.
@@ -264,7 +280,7 @@ Ordered by risk removed per unit of work, not by section number.
 |---|---|---|---|
 | **0** ✅ | Test net: `LogUtils` and `sanitize` characterization tests against v1.0.8 — both files had none. `ConfigManager` and `Transport` coverage deferred to Phase 2, which is where they are first touched | A15f (partial) | no |
 | **1** ✅ | Safety fixes, shipped as `1.1.0`: stop calling `removeAllListeners`; register process listeners once per process; keep the raw request out of the payload; preserve non-request metadata keyed `req`; move `sanitize()` into `LogFormatter` behind a `sanitizeMetadata` opt-out; replace the empty catch with throttled reporting. The `preventUncaughtExceptions` default flip is **deferred to 2.0.0** and marked deprecated | A1 (non-breaking half), A2, A5, A6 | **no** |
-| **2** | Dependency hygiene: drop `https`; `winston` to optional peer + lazy require; drop `uuid` for `crypto.randomUUID()`; `engines >= 18`; lazy `LogUtils` singleton | A4, A7, A8, A14, A15b | yes — peer dep |
+| **2** | Dependency hygiene: drop `https`; `winston` to optional peer + lazy require; drop `uuid` for `crypto.randomUUID()`; `engines >= 18`; lazy `LogUtils` singleton; resolve configuration from `VCAP_SERVICES` bindings | A4, A7, A8, A14, A15b, B4 | yes — peer dep |
 | **3** | Outbound queue: single bounded queue with per-entry retry, size/interval batching, drain on `shutdown()`, formatting failures separated from transport failures | A3, A11, A12, A18 | no |
 | **4** | Operability: `setLevel()` on both classes, real `setLoggingLevel()`, status-class handling (2xx success / 4xx drop / 5xx retry), the four drop counters and their sum invariant in `getHealthStatus()`, throttled reporting while retrying, neutral defaults, console only on fallback | A9, A10, A13, A16, A17, B3 | yes — A10 changes output volume |
 | **5** | CAP integration as a separate entry point, with its own tests and docs | B1 | no — additive |
