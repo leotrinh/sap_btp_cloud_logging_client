@@ -182,6 +182,31 @@ This is the largest missing piece and the one with the clearest value. It should
 
 **Cross-package constraint on `tenant_id`** (agreed with the Java package, 2026-10-05): when this field is emitted, **omit the key entirely when there is no tenant — never write `""`**. The Java reference implementation was verified empirically against `cf-java-logging-support` 3.7.1: an unset MDC field is absent from the shipped JSON, not null and not empty, and that behaviour is pinned by an assertion on their side. An absent field and an empty one are different things in OpenSearch: `exists:tenant_id` only stays meaningful if nobody writes empties, and a permanently-empty column reads as "this request had no tenant" rather than "this runtime has no concept of tenants". The field is **optional** in the contract — emitted when the runtime supplies it, absent otherwise — so it creates no work before Phase 5.
 
+#### Verified field contract against the Java package (2026-10-05)
+
+Both columns are measured from bytes each package actually shipped, not read from code. The Java reference entry, verbatim:
+
+```json
+{"msg":"order 4711 processed","tenant_id":"acme-tenant","level":"INFO","user_id":"alice","cds_event":"READ","written_ts":"1791204311205820100","logger":"ROOT","correlation_id":"corr-4711","cds_service":"CatalogService","written_at":"2026-10-05T12:45:11.198Z","thread":"main","type":"log"}
+```
+
+| Field | Java (reference) | Node today | Resolution |
+|---|---|---|---|
+| `msg` | log message only, never decorated with exception text | identical — `message` is deleted after mapping, only `msg` ships | matches, no work |
+| `level` | upper-case | upper-case | matches, no work |
+| `correlation_id` | snake_case, top-level | `correlationId` | rename in 2.0.0 |
+| `stacktrace` | **JSON array of strings**, one element per frame, leading tab preserved on `at` lines | `stack`, a single `\n`-joined string — and it is the *formatter's* call stack, not the error's (A15a) | rename **and** retype in 2.0.0; no working field is lost, since the current one is already wrong |
+| `exception_type`, `exception_message` | separate top-level strings | **absent** — an `Error` in metadata serializes to `{}`, because `message` and `stack` are non-enumerable, so exception text is silently dropped today | adopt both in 2.0.0 |
+| `type` | the constant `"log"`, always emitted by the SAP encoder | same key, incompatible values — `API` / `EVENT` / `BASE` from `LOG_TYPES` in `lib/LogUtils.js`, and absent entirely on the `createLogger()` path | **collision.** Both are strings so the index mapping survives, but a `type:log` dashboard filter excludes every Node entry. Proposed: `type` becomes `"log"` on both sides, our record kind moves to `record_kind` |
+| `organization_name` | resolved from env/VCAP, not yet written to the payload — "will match", not "matches" | emitted, but carries the **subaccount ID**, mapped from `subaccount` which is then deleted | **collision pending confirmation.** If the Java value is the CF organization name, one key would hold two different concepts and we need two keys |
+| `app_name` | resolved from env/VCAP, not yet written to the payload | emitted from the application name | same meaning; matches once Java emits it |
+| `written_at` | ISO-8601 with `Z` | `timestamp`, same content | rename in 2.0.0 |
+| `written_ts` | epoch **nanoseconds as a string** | absent | Node has no wall-clock nanosecond source; padding milliseconds with six zeros is precision theatre. Proposed Java-only unless the shared dashboard needs it from both |
+| `tenant_id`, `user_id`, `cds_service`, `cds_event` | top-level MDC keys, absent when unsupplied | absent (no CAP integration yet) | Phase 5, under the omit-when-empty rule above |
+| `environment`, `hostname`, `pid` | not emitted | emitted | additive, assumed harmless |
+
+Every rename above is breaking and belongs in the single 2.0.0 batch, not in 1.1.0.
+
 ### B2 — No sampling or rate limiting
 
 A loop that logs inside a request handler can saturate the ingest quota, and on a shared instance it evicts other tenants' data through size-based curation. A simple per-level token bucket with a `logs dropped` counter would bound the damage.
