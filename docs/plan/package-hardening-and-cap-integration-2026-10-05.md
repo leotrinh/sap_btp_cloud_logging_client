@@ -163,6 +163,47 @@ Node 14 reached end of life in April 2023. Supporting it blocks `crypto.randomUU
 | e | `res.end` monkey-patching assumes a three-argument signature; fragile with compression and streaming middleware | `lib/Middleware.js:52-65` |
 | f | No tests for `ConfigManager`, `Transport`, `LogUtils`, or `sanitize` — the four files holding the most logic | `test/` holds four files, none covering these |
 
+### A16 — HIGH: a 4xx response is counted as a successful send
+
+`lib/Transport.js:58` sets `validateStatus: (status) => status < 500`, and the 4xx branch prints one `console.warn` then returns normally. Consequences, in order of how long they take to notice:
+
+- A wrong credential produces a 401 per log line and nothing else. `isHealthy` stays `true`, `retryCount` stays `0`, `getHealthStatus()` reports a healthy client, and every line is discarded by the server. There is no state anywhere in the package that distinguishes this from working.
+- A payload the endpoint rejects with a 400 — a wrong field shape, an oversize body — is indistinguishable from an accepted one. **This also means the package cannot be used as evidence that the ingest contract is correct**: a successful-looking run proves only that nothing threw. Raised with the Java package on 2026-10-05, which had been inferring the wire contract from this file.
+- 4xx is not retried, which is right, but it is also not reported through `onError` or counted anywhere, which is not.
+
+**Fix:** treat 2xx as success, 4xx as a non-retryable drop (counted, reported once per distinct status per throttle window), 5xx as retryable. Lands with the counters in Phase 4.
+
+### A17 — MEDIUM: the retry window is completely silent
+
+`_handleError()` returns immediately after scheduling a retry, with no output. A sustained outage therefore produces nothing on the console until `maxRetries` is exhausted — and because `retryCount` is only reset on success, every entry after that point goes straight to the console fallback, one line each. The package is silent exactly while the problem is recoverable and noisy once it is not. Same class as the empty catch fixed in 1.1.0 (A5), on a different path; reuse `CLOUD_FAILURE_THROTTLE_MS` rather than adding a second throttle.
+
+### A18 — MEDIUM: an unformattable entry is retried as though it were a network failure
+
+`sanitize()` throws if any metadata getter throws — verified: `sanitize({ password: 'p', nested: { get boom() { throw ... } } })` propagates. The throw escapes `LogFormatter.format()` into `CloudLoggingService.log()`'s catch, which cannot tell a formatting failure from a transport failure, so the entry is retried with exponential backoff and fails identically every time.
+
+Redaction itself is **fail-closed** — `sanitize()` builds a new object and never returns its input, so no partially-redacted value can escape. Only the error routing is wrong.
+
+**Fix:** format outside the transport try, or tag the error, so a formatting failure is reported once and dropped instead of retried.
+
+### A19 — notes from the Java package's adversarial review (2026-10-05)
+
+Failure classes it hit that do **not** apply here, recorded so nobody re-derives them:
+
+| Their finding | Status here |
+|---|---|
+| Reinit leaves the logger "started" but dead | clean — `LogUtils._initializeWithRetry()` assigns `cloudLogger` only after construction succeeds. Inverse weakness: once the three retries are exhausted it never re-initialises for the life of the process |
+| Logging from inside the HTTP client re-enters the logger | clean today — axios does not log, and failure reports go to `console` directly, not back through the logger |
+| Request context leaking across reused execution | clean today — no `AsyncLocalStorage`, no module-level correlation state; correlation rides on `req.headers` |
+| Redaction fails open on malformed input | inverted — fails closed, see A18 |
+
+The three "clean today" rows are clean only because the integration that creates the hazard does not exist yet. **Phase 5 design constraints**, carried from their empirical findings:
+
+- A recursion guard must test the **call path and the source module independently** — they verified a name-based guard alone was insufficient, because the HTTP client spawned a thread it could not name that logged from outside the guard.
+- Whatever sets per-request context must clear it on the **error** path, not only the success path. The question is not whether a clear exists but whether it runs when the handler throws.
+- Reporting a cloud failure through `cds.log` would re-enter the logger that just failed; failure reporting must stay on a path that cannot route back.
+
+Also adopted from them: the four-counter drop split (`droppedOnOverflow`, `droppedNonRetryable`, `droppedOnError`, `failedBatches`) with a required `queued == sent + dropped` invariant, for Phase 4; and the test rule that every "X never happens" assertion needs a paired test proving X happens when it should. Applying that rule here found one soft spot — `test/ProcessSafety.test.js`, "never ships the authorization header or cookie", passes because the raw request is dropped wholesale and would still pass with redaction disabled. It tests a real property but not the one its name claims.
+
 ## B. Feature gaps for SAP CAP
 
 ### B1 — No CAP integration exists
@@ -224,8 +265,8 @@ Ordered by risk removed per unit of work, not by section number.
 | **0** ✅ | Test net: `LogUtils` and `sanitize` characterization tests against v1.0.8 — both files had none. `ConfigManager` and `Transport` coverage deferred to Phase 2, which is where they are first touched | A15f (partial) | no |
 | **1** ✅ | Safety fixes, shipped as `1.1.0`: stop calling `removeAllListeners`; register process listeners once per process; keep the raw request out of the payload; preserve non-request metadata keyed `req`; move `sanitize()` into `LogFormatter` behind a `sanitizeMetadata` opt-out; replace the empty catch with throttled reporting. The `preventUncaughtExceptions` default flip is **deferred to 2.0.0** and marked deprecated | A1 (non-breaking half), A2, A5, A6 | **no** |
 | **2** | Dependency hygiene: drop `https`; `winston` to optional peer + lazy require; drop `uuid` for `crypto.randomUUID()`; `engines >= 18`; lazy `LogUtils` singleton | A4, A7, A8, A14, A15b | yes — peer dep |
-| **3** | Outbound queue: single bounded queue with per-entry retry, size/interval batching, drain on `shutdown()` | A3, A11, A12 | no |
-| **4** | Operability: `setLevel()` on both classes, real `setLoggingLevel()`, counters in `getHealthStatus()`, neutral defaults, console only on fallback | A9, A10, A13, B3 | yes — A10 changes output volume |
+| **3** | Outbound queue: single bounded queue with per-entry retry, size/interval batching, drain on `shutdown()`, formatting failures separated from transport failures | A3, A11, A12, A18 | no |
+| **4** | Operability: `setLevel()` on both classes, real `setLoggingLevel()`, status-class handling (2xx success / 4xx drop / 5xx retry), the four drop counters and their sum invariant in `getHealthStatus()`, throttled reporting while retrying, neutral defaults, console only on fallback | A9, A10, A13, A16, A17, B3 | yes — A10 changes output volume |
 | **5** | CAP integration as a separate entry point, with its own tests and docs | B1 | no — additive |
 | **6** | Polish: real error stacks, remove the redundant enrichment, expose `fatal`, harden the `res.end` patch | A15a, A15c, A15d, A15e | no |
 | **7** | Sampling / rate limiting | B2 | no |
