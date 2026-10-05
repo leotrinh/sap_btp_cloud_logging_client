@@ -2,17 +2,34 @@
 
 [![npm version](https://img.shields.io/npm/v/sap-btp-cloud-logging-client.svg)](https://www.npmjs.com/package/sap-btp-cloud-logging-client) [![npm downloads](https://img.shields.io/npm/dm/sap-btp-cloud-logging-client.svg)](https://www.npmjs.com/package/sap-btp-cloud-logging-client)
 
-A Package support using cloud logging multiple-sub accounts with 1 Cloud Logging instance
-Example: Your System Landscape with 3 global account (2 CPEA, 1 PAYG)
+Ship logs from applications in many subaccounts — across more than one global account — into a **single** Cloud Logging instance. Only the subaccount holding the entitlement provisions an instance; every other application reaches it through a user-provided service (UPS) or binding carrying that instance's credentials.
+
 ```
-├── Global CPEA Subcribe
-│   ├── Sub Account A Subcribed Cloud Logging
-│   ├── Sub Account B using Cloud Logging via sap-btp-cloud-logging-client
-├── Global CPEA using/
-│   └── Sub Account C using Cloud Logging via sap-btp-cloud-logging-client
-├── Global PAYG/
-│   └── Sub Account D using Cloud Logging via sap-btp-cloud-logging-client
+Global Account CPEA
+│
+├── Subaccount A
+│   └── Cloud Logging entitlement
+│       └── CENTRAL-LOGGING instance
+│
+├── Subaccount B
+│   └── App
+│       └── UPS / binding ───────┐
+│                                │
+└── Subaccount C                 │
+    └── App                      ├── OTLP/mTLS
+        └── UPS / binding ───────┤
+                                 │
+Global Account PAYG              │
+└── Subaccount D                 │
+    └── App                      │
+        └── UPS / binding ───────┘
+                                 ↓
+                         CENTRAL-LOGGING
 ```
+
+The instance boundary is what matters here, not the global-account boundary: an application in a PAYG global account ships to an instance provisioned under CPEA exactly the same way one in a neighbouring subaccount does, because the credentials travel in the UPS rather than being resolved from the platform. Set `BTP_SUBACCOUNT_ID` and `BTP_APPLICATION_NAME` per application so the central dashboard can tell the sources apart — they are the only thing distinguishing them once the logs land.
+
+> **Transport note.** The lane drawn above is the platform-level one. This client currently ships over the Cloud Logging **HTTPS JSON ingest endpoint** (`BTP_LOGGING_INGEST_ENDPOINT`), with basic auth by default and mTLS via `authType: 'mtls'`. It does not speak OTLP. If your central instance is to be fed over OTLP, that is a separate ingest path and this client is not the component that does it — see [Architecture](docs/Architecture.md#transport-lanes).
 ## Ship by Claude Kit
 Ship faster With AI Dev Team
 [DISCOUNT 25% - PAY ONE TIME, LIFETIME UPGRADE ](https://claudekit.cc/?ref=VAK416FU)
