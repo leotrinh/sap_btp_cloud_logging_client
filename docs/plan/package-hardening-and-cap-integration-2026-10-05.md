@@ -326,6 +326,38 @@ Both columns are measured from bytes each package actually shipped, not read fro
 | `tenant_id`, `user_id`, `cds_service`, `cds_event` | top-level MDC keys, absent when unsupplied | absent (no CAP integration yet) | Phase 5, under the omit-when-empty rule above |
 | `environment`, `hostname`, `pid` | not emitted | emitted | additive, assumed harmless |
 
+#### Measured against the live index, 2026-10-06
+
+Two entries written from this client nineteen seconds apart, then retrieved from `logs-json-000370` through the dashboards console proxy. Identical client, identical run, one difference: the correlation field's spelling.
+
+| | sent as `correlation_id` | sent as `correlationId` (what the package ships today) |
+|---|---|---|
+| stored under the name sent | yes | yes |
+| `trace_id` derived by the platform | **`00df387a77524b7db925ee5a3f9d66c9`** | **absent** |
+
+**The platform reads `correlation_id` semantically.** It strips the hyphens and derives a 32-hex W3C trace-context `trace_id`. An entry written under `correlationId` is stored faithfully and is completely inert: no `trace_id`, no trace to join.
+
+That makes `correlationId` → `correlation_id` a **capability fix, not a naming preference**, and it is the sentence the migration note should lead with. "Renamed for consistency" invites a consumer to postpone; "entries under the old name cannot be traced" does not.
+
+**The `timestamp` rename gains no such argument — checked, and the hypothesis is wrong.** The Java package suggested `written_at` might be date-mapped where `timestamp` is not. Both are `date` in the index mapping:
+
+```
+timestamp       date        written_at      date
+correlation_id  text        correlationId   text        trace_id  text
+msg             text        level           text        type      text
+environment     text        hostname        text        pid       long
+```
+
+So `timestamp` → `written_at` stays worth doing for cross-package consistency, but it buys no platform behaviour and must not be sold to consumers as if it does. Ranking the two renames by what they actually deliver is the difference between a migration note a consumer acts on and one they discount.
+
+Three further observations from the same documents:
+
+- Every field survives under the name it was sent with. Nothing dropped, renamed or coerced — including our `environment`, `hostname` and `pid` (mapped `long`), which the Java package does not emit.
+- `correlationId` is now **in the index mapping** as `text`. The field exists in this index whether or not we keep writing it, so the rename does not remove it from anyone's field list; it stops new entries landing there.
+- `_cls_parse_ts` and `@timestamp` are added by the platform, and `@timestamp` is what the dashboard sorts on by default. Neither package's own timestamp field drives the default view.
+
+**Transition window.** Once this package writes `correlation_id`, the index holds both spellings — old entries under `correlationId`, new ones under `correlation_id`. Anything querying across the boundary must match both, and the window lasts as long as **retention**, not as long as the rollout. A consumer who renames their dashboard field on deploy day loses sight of everything written before it. This belongs in the migration note as prominently as the rename itself.
+
 Every rename above is breaking and belongs in the single 2.0.0 batch, not in 1.1.0.
 
 ### B4 — No service-binding resolution, in a landscape built on service bindings
