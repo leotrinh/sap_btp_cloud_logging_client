@@ -107,7 +107,14 @@ export interface FormattedLogEntry {
 	subaccount?: string; // Made optional to allow deletion
 	hostname: string;
 	pid: number;
+	/**
+	 * @deprecated Emitted alongside `correlation_id` for backward compatibility only.
+	 * Cloud Logging derives a trace id from `correlation_id`, not from this field.
+	 * Removed in 2.0.0 — query `correlation_id` instead.
+	 */
 	correlationId?: string;
+	/** Correlation id as Cloud Logging reads it; the platform derives `trace_id` from this field. */
+	correlation_id?: string;
 	stack?: string;
 	request?: RequestInfo;
 	// BTP Cloud Logging standard fields

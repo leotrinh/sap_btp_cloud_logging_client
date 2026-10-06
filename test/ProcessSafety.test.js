@@ -160,6 +160,40 @@ describe('request handling in the formatted payload (A2)', () => {
   });
 });
 
+// Cloud Logging derives a W3C trace id from `correlation_id` by stripping its
+// hyphens, and ignores `correlationId`. Verified against the live index: the
+// same client writing both names minutes apart produced a `trace_id` only for
+// the snake_case one. Both are emitted until 2.0.0 drops the camelCase name.
+describe('correlation id is emitted under both names', () => {
+  const formatter = new LogFormatter({ applicationName: 'app' });
+
+  it('emits correlation_id, which is the name the platform reads', () => {
+    const entry = formatter.format('INFO', 'done', { correlationId: 'corr-4711' });
+
+    expect(entry.correlation_id).toBe('corr-4711');
+  });
+
+  it('still emits correlationId, so existing queries keep working', () => {
+    const entry = formatter.format('INFO', 'done', { correlationId: 'corr-4711' });
+
+    expect(entry.correlationId).toBe('corr-4711');
+  });
+
+  it('accepts requestId as the source for both', () => {
+    const entry = formatter.format('INFO', 'done', { requestId: 'req-99' });
+
+    expect(entry.correlation_id).toBe('req-99');
+    expect(entry.correlationId).toBe('req-99');
+  });
+
+  it('emits neither when the consumer supplies no correlation id', () => {
+    const entry = formatter.format('INFO', 'done', { orderId: 'A1' });
+
+    expect(entry.correlation_id).toBeUndefined();
+    expect(entry.correlationId).toBeUndefined();
+  });
+});
+
 // A consumer may legitimately pass metadata with a key named `req` that is not
 // an HTTP request. Extracting it would both lose their field and crash on
 // `req.get`, so anything not request-shaped stays ordinary metadata.
