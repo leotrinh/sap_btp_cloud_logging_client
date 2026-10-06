@@ -264,9 +264,48 @@ Related finding from the Java package (2026-10-05): its resolver read only the m
 
 **Phase 2**, alongside the other configuration and boot work.
 
-### B2 — No sampling or rate limiting
+### B2 — No volume control of any kind
 
-A loop that logs inside a request handler can saturate the ingest quota, and on a shared instance it evicts other tenants' data through size-based curation. A simple per-level token bucket with a `logs dropped` counter would bound the damage.
+A loop that logs inside a request handler can saturate the ingest quota, and on a shared instance it evicts other applications' data through size-based curation. `grep` for any size cap across `lib/` and `types/` returns nothing: no truncation, no rate limit, no dedup, no per-field length cap.
+
+The shape below is **agreed with the Java package** (2026-10-05) so the two behave identically where they can. Their implementation landed first; what follows is the semantics, plus the three places Node diverges.
+
+**Three mechanisms, two of them off by default.** A logging library that silently discards entries nobody asked it to discard is a worse surprise than the volume it saves. Truncation is the exception, because it bounds memory rather than content.
+
+| Mechanism | Default | Bounds |
+|---|---|---|
+| Truncation | **on** | memory and per-entry size |
+| Byte budget | off | sustained throughput against the shared quota |
+| Repeat suppression | off | a single statement flooding the index |
+
+**1. Truncation.** Cap each top-level string value individually (`maxValueChars` 8192, `maxEntryChars` 32768) — never cut the serialized entry at an offset, because a malformed entry breaks the ingest parse for the whole batch and takes unrelated entries down with it. Never cut into a number or a nested structure; their length comes from their shape. Always mark the cut (`...[truncated N chars]`) — an entry silently halved reads as complete data. The hard-cap fallback produces a fresh valid object, not a fragment.
+
+It must run **before the entry is buffered**, not at send time. A queue bounded by entry *count* makes no claim about memory: 10 000 entries × a 500 KB payload is 5 GB. This is the Java package's correction of its own README, and it lands here before Phase 3 writes the queue rather than after. In Node the rule reads "synchronously, in the caller's tick, before the first `await`" — which `format()` already satisfies, since it runs before `await this.transport.send()` and `sanitize()` already returns a deep copy. That also closes the caller-mutation window: the consumer cannot mutate the metadata object between the call and serialization.
+
+**2. Byte budget.** Token bucket over **bytes**, not lines — volume is what is paid for and retained. Burst capacity 10× the sustained rate; refill continuously from elapsed time, and **only advance the clock when the refill is non-zero**, or a fast caller discards the sub-byte fraction on every call and the bucket never refills (a real bug on their side, whose first test passed while measuring nothing).
+
+The decision that matters more than the algorithm: **shed by level, least important first — `DEBUG` → `INFO` → `WARN`, and `ERROR` is never shed.** Entries burst exactly when something is going wrong, so a plain bucket preferentially discards the evidence explaining the incident. `ERROR` may overdraw the bucket; later low-severity entries repay it. Count each shed level separately.
+
+**3. Repeat suppression.** LRU 100, 5 repetitions, bounded cache so a million distinct statements cannot grow it into a leak, an evicted statement starts counting again rather than being silenced for process life, and the suppressed count is reported — fifty thousand copies are less diagnostic than "this fired fifty thousand times". Suppression applies **only on the path that costs money**; stdout stays complete for an operator shelled into the container.
+
+**The Node divergence that cannot be papered over.** Logback keys the cache on the *unsubstituted message pattern* — `log.warn("order {} rejected", id)` is one statement regardless of the id. Node has no pattern at our boundary: by the time `logger.info(\`order ${id} rejected\`)` reaches us the template is already a finished string, so keying on what we receive sees every id as a distinct statement and suppresses nothing. The trick does not transfer. Options, in order of preference:
+
+1. Key on a **normalized** form of the message — digits, UUIDs and hex runs replaced by placeholders — accepting that normalization is heuristic and will occasionally merge two genuinely different statements.
+2. Accept an explicit `messageKey` in metadata, used as the cache key when present. Exact, but only for consumers who opt in.
+3. Skip suppression in the Node package and rely on the byte budget alone.
+
+This needs deciding before implementation, because it changes what "suppressed" means between the two packages and therefore what an operator reading a shared dashboard can conclude.
+
+**Two more Node-specific hazards**, both instances of `coding.C5`:
+
+- A byte budget must measure **bytes**, not `str.length`, which counts UTF-16 units. Measured: `'Đơn hàng đã được xử lý thành công'` is 33 units and 47 bytes (1.42×). Sizing a byte bucket with `.length` under-counts Vietnamese content by roughly half.
+- Truncation must cut on codepoint boundaries. `'ab🚀cd'.slice(0, 3)` yields a lone surrogate; `[...s].slice(0, 3).join('')` is correct. The Java package warns about the same split from the other side of the encoding.
+
+**Counters stay separate from the shipper's drop counters** (A16/B3): "we chose not to send this" and "we could not send this" are different problems with different fixes. `truncatedEntries`, `shedDebug`, `shedInfo`, `shedWarn`, `budgetBytesAvailable`, `suppressedDuplicates`.
+
+One implementation note for Phase 7: truncation walks every string in the entry, and `sanitize()` already walks the same tree. Fold truncation into that traversal rather than adding a second full pass.
+
+**Reference point, measured by the Java package:** SAP's own `cf-java-logging-support` ships exactly one knob — `JsonEncoder.setMaxStacktraceSize`, default 56320 bytes, truncating head-and-tail so the exception and the `Caused by` both survive. No rate limiting, sampling or dedup anywhere in it.
 
 ### B3 — No health/diagnostics surface worth the name
 
@@ -285,7 +324,7 @@ Ordered by risk removed per unit of work, not by section number.
 | **4** | Operability: `setLevel()` on both classes, real `setLoggingLevel()`, status-class handling (2xx success / 4xx drop / 5xx retry), the four drop counters and their sum invariant in `getHealthStatus()`, throttled reporting while retrying, neutral defaults, console only on fallback | A9, A10, A13, A16, A17, B3 | yes — A10 changes output volume |
 | **5** | CAP integration as a separate entry point, with its own tests and docs | B1 | no — additive |
 | **6** | Polish: real error stacks, remove the redundant enrichment, expose `fatal`, harden the `res.end` patch | A15a, A15c, A15d, A15e | no |
-| **7** | Sampling / rate limiting | B2 | no |
+| **7** | Volume control: truncation (on), byte budget and repeat suppression (off), per-mechanism counters | B2 | no |
 
 ### Versioning — no release may break a consumer
 
