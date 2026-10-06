@@ -11,6 +11,7 @@
         "docs/Architecture.md",
         "docs/Usage.md",
         "docs/Release.md",
+        "docs/version-control.md",
         "docs/BTP-Field-Mapping.md",
         "docs/static",
         "index.js",
