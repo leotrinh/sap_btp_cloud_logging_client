@@ -173,6 +173,21 @@ Node 14 reached end of life in April 2023. Supporting it blocks `crypto.randomUU
 
 **Fix:** treat 2xx as success, 4xx as a non-retryable drop (counted, reported once per distinct status per throttle window), 5xx as retryable. Lands with the counters in Phase 4.
 
+**Ingest contract — partially verified 2026-10-06, by the Java package against the real central instance.** `POST https://<ingest-host>` with no path suffix, `Content-Type: application/json`, basic auth from the service key, and a **JSON array** body returned **HTTP 200**, status code read directly. Credentials came through the same three discrete variables this client reads, so the envelope is confirmed for our configuration path too: bare host, no suffix, basic auth header, array body.
+
+**The gap that remains is ours alone: our default path does not send an array.** Captured from a local server receiving real traffic from this client:
+
+| Caller | Body |
+|---|---|
+| `log()` — every `logger.info()` / `.error()` call | `{"timestamp":…}` — a **bare object** |
+| `logBatch()` | `[{…}]` — an array, the verified shape |
+
+So the shape proven to be accepted is the one almost no consumer currently produces, and the shape every consumer produces today is unverified. A `validateStatus` of `status < 500` means a 400 rejecting the bare object would be invisible: one `console.warn` per line, `isHealthy` still true, logs silently discarded server-side. That combination — unverified default shape plus blindness to rejection — is why this finding is HIGH rather than MEDIUM.
+
+Verifying it is one request for whoever holds credentials: POST a bare object to the ingest endpoint and read the status code. If it is rejected, the fix is to have `HttpTransport.send()` always wrap a single entry in an array, which is non-breaking and would ship in the same phase.
+
+Still unverified after this, for both packages: **queryability**. A 200 means the endpoint accepted the bytes, not that the entry is searchable with the field names under negotiation. Only the dashboard settles that — send an entry with a known `correlation_id`, then search for it and report which field names actually came back, watching for a dropped field, a coerced type, or `stacktrace` arriving as something other than an array.
+
 ### A17 — MEDIUM: the retry window is completely silent
 
 `_handleError()` returns immediately after scheduling a retry, with no output. A sustained outage therefore produces nothing on the console until `maxRetries` is exhausted — and because `retryCount` is only reset on success, every entry after that point goes straight to the console fallback, one line each. The package is silent exactly while the problem is recoverable and noisy once it is not. Same class as the empty catch fixed in 1.1.0 (A5), on a different path; reuse `CLOUD_FAILURE_THROTTLE_MS` rather than adding a second throttle.
