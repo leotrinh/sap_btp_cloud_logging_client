@@ -433,7 +433,13 @@ One implementation note for Phase 7: truncation walks every string in the entry,
 
 ### B3 — No health/diagnostics surface worth the name
 
-`getHealthStatus()` returns `isHealthy`, `retryCount` and endpoints. It cannot answer the question operators actually ask: are logs arriving? Add counters — sent, failed, dropped, queue depth, last error, last success timestamp.
+`getHealthStatus()` returns `isHealthy`, `retryCount` and endpoints. It cannot answer the question operators actually ask: are logs arriving? Worse, it answers it wrongly — `validateStatus: status < 500` books a 4xx as a successful send (A16), so `healthy` stays `true` through an unbounded run of rejections. That is worse than having no readout, because nothing at least fails honestly.
+
+Design agreed with the Java package (2026-10-06), whose actuator endpoint is the model:
+
+- **Split retryable from non-retryable drops.** One combined error count is alarming rather than diagnostic. Retryable climbing means the network or the service is unwell and the queue is absorbing it; non-retryable climbing means the credential is being rejected and absorbing it is pointless. The two need opposite responses, so they need separate counters.
+- **Expose an `attached` flag** — whether any configuration resolved at all. It separates "configured and failing" from "never configured", which is the most common support question and the one no counter can answer. It would also have made A21 diagnosable on sight.
+- Alongside: sent, queue depth, last error, last success timestamp, and the volume counters from B2 kept separate from these delivery counters.
 
 ## C. Remediation plan
 
