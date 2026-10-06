@@ -185,6 +185,29 @@ Redaction itself is **fail-closed** — `sanitize()` builds a new object and nev
 
 **Fix:** format outside the transport try, or tag the error, so a formatting failure is reported once and dropped instead of retried.
 
+### A20 — MEDIUM: mTLS is reachable by exactly one route, and no test has ever executed it
+
+Prompted by the Java package discovering its own mTLS path was unreachable dead code (2026-10-06). Ours is not dead, but it is unexercised, and two of the three ways a consumer would try to reach it fail.
+
+| Route | Result |
+|---|---|
+| `BTP_LOGGING_SRV_KEY_CRED` + `BTP_LOGGING_SRV_AUTH_TYPE=mtls` | **works** — `MtlsAuthStrategy` selected, endpoint resolved from the service key, `https.Agent` built, request reaches OpenSSL |
+| constructor option `{ authType: 'mtls' }` | strategy and agent are built, but `ingestMtlsEndpoint` defaults to `''` and has no env source, so `send()` throws `Cloud logging ingest endpoint is not configured` |
+| discrete `BTP_LOGGING_*` env vars | impossible — `authType` is hard-coded `'basic'` in `getDefaultConfig()` and `BTP_LOGGING_SRV_AUTH_TYPE` is read **only** inside `fromServiceKey()` (`lib/ConfigManager.js:111`) |
+
+Verified by running each route: the working one failed at `error:0480006C:PEM routines::no start line` with synthetic certificates, which is proof the wiring reaches TLS rather than stopping short of it.
+
+Two defects fall out:
+
+- **`README.MD:129` documents `BTP_LOGGING_SRV_AUTH_TYPE` as a general switch** (`allow: basic,mtls`). It is honoured on the service-key path only. A consumer configuring by discrete env vars who sets it is silently ignored — no warning, no error, logs simply keep flowing over basic auth.
+- **There is no env variable for the mTLS endpoint at all.** `getDefaultConfig()` hard-codes `ingestMtlsEndpoint: ''`, so the discrete-env path could not do mTLS even if `authType` were settable there.
+
+**No test executes it.** `test/CloudLoggingService.test.js:228` asserts `validateConfig` throws when certificates are missing, and `:239` asserts `fromServiceKey` maps the endpoint. Nothing constructs `MtlsAuthStrategy`, builds an agent, or sends through one. The validate test is precisely the negative-without-a-positive-twin pattern the Java package flagged in A19: it proves the guard rejects a bad config, and nothing proves a good config works. It has never run against a real mTLS endpoint either.
+
+**Recommendation: neither delete nor promote — stop claiming it until a test exercises it.** The capability is two small classes and one working route, so deleting costs more than it saves. But `docs/Architecture.md` currently lists the mTLS lane as "yes, via `MtlsAuthStrategy`" alongside basic auth, which reads as equal support, and that is not evidence-backed. Mark it experimental, fix the two defects above, and add an offline test — a self-signed fixture and an HTTPS stub requiring client auth prove mTLS *works* without a real endpoint; only the ingest contract needs the real one.
+
+Operational context, unchanged by any of this: ingest username and password do not expire, while Cloud Logging client certificates do. `README.MD:129` says the key is valid 180 days; the Java package's owner states 90. Either way mTLS imposes a rotation cycle on every consuming project for no current gain, which is why nobody has used it.
+
 ### A19 — notes from the Java package's adversarial review (2026-10-05)
 
 Failure classes it hit that do **not** apply here, recorded so nobody re-derives them:
