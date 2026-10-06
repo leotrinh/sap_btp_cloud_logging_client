@@ -82,16 +82,41 @@ describe('Network Error Handling', () => {
       await expect(logger.info('Test message')).rejects.toThrow('Cloud Logging connection failed: ETIMEDOUT');
     });
 
-    it('should handle 4xx HTTP errors gracefully', async () => {
-      axios.mockResolvedValue({
-        status: 401,
-        statusText: 'Unauthorized'
-      });
+    // A 4xx is the server refusing the entry — a wrong credential, a bad
+    // payload. It used to be counted as a successful send, so a permanently
+    // misconfigured client reported itself healthy while every line was
+    // discarded. It is now reported and dropped: still never thrown into the
+    // caller, because business code cannot act on a logging credential fault.
+    it('reports a 4xx rejection instead of counting it as delivered', async () => {
+      axios.mockResolvedValue({ status: 401, statusText: 'Unauthorized' });
 
-      // Should not throw for 4xx errors
       await expect(logger.info('Test message')).resolves.toBeUndefined();
+
       // eslint-disable-next-line no-console
-      expect(console.error).not.toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('HTTP 401'));
+      expect(logger.getHealthStatus().healthy).toBe(false);
+    });
+
+    it('does not retry a 4xx, because the server will reject it again', async () => {
+      axios.mockResolvedValue({ status: 400, statusText: 'Bad Request' });
+
+      await logger.info('Test message');
+
+      expect(logger.retryTimer).toBeNull();
+      expect(logger.retryCount).toBe(0);
+    });
+
+    it('notifies onError when an entry is rejected', async () => {
+      const onError = jest.fn();
+      const svc = new CloudLoggingService({
+        ingestEndpoint: 'https://example.invalid', username: 'u', password: 'p',
+        preventUncaughtExceptions: false, onError,
+      });
+      axios.mockResolvedValue({ status: 403, statusText: 'Forbidden' });
+
+      await svc.info('Test message');
+
+      expect(onError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ level: 'INFO' }));
     });
 
     it('should handle 5xx HTTP errors with proper exception', async () => {

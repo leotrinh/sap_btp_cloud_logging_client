@@ -1,5 +1,32 @@
 # Changelogs
 
+## v1.2.0
+
+Delivery-correctness pass. **No breaking change** — no default changes, no call signature moves, and no field is removed from the payload.
+
+### Fixed
+- **A rejected entry is no longer counted as delivered.** `HttpTransport` used `validateStatus: status < 500`, so any 4xx — a wrong credential, a rejected payload — was treated as a successful send. `getHealthStatus()` reported `healthy: true` through an unbounded run of rejections while every line was discarded server-side, which is the longest-to-notice failure a logging client can have. Responses are now classified: 2xx delivered, 4xx reported and dropped, 5xx retried. Verified against a real ingest endpoint — a deliberately wrong credential now reports `HTTP 401` on the console and sets `healthy: false`, where it previously stayed silent and healthy.
+- **A 4xx is no longer retried.** The server will reject the same entry again, so retrying spent the budget on a guaranteed failure and delayed the console fallback that would have revealed the problem.
+- **The retry window is no longer silent.** `_handleError()` returned without output while backing off, so the package said nothing exactly while a problem was still recoverable, then became noisy once it was not. Retries are now reported, throttled to one line per distinct problem per minute.
+- **An entry that cannot be formatted is dropped instead of retried.** `sanitize()` throws if a metadata getter throws; that escaped `format()` into the transport's catch, which could not distinguish a formatting failure from a network one, so an entry that could never be built was retried with exponential backoff. Formatting now runs outside the transport boundary and such an entry is reported, passed to `onError`, and dropped.
+- **A malformed service key no longer destroys working configuration.** `JSONUtils.getEnvJSONObject()` returned `{}` on a parse failure; `{}` is truthy, so an empty object was spread over configuration that was valid. A `BTP_LOGGING_SRV_KEY_CRED` truncated by a line-oriented `.env` reader — the shape `cf service-key` output takes — therefore wiped correct `BTP_LOGGING_*` variables and failed with a message naming the credentials, which were fine, rather than the key, which was not. An unparseable key is now ignored with a warning that names it, and the discrete variables are used.
+- **An incomplete service key says what it is missing.** A parseable key is a deliberate selection, so it is used as given rather than quietly completed from unrelated variables — which would ship logs under a credential the operator did not know they had chosen.
+- **Placeholder defaults are neutral and defined once.** `LogUtils` fell back to the author's personal identifiers while `ConfigManager` used different values again, so the same unconfigured application reported a different origin depending on which entry point it used. Both are now `unknown-subaccount` / `unknown-app`. No entry in the production index carried any of the previous defaults, so nothing observable changes.
+- **A logging call still never throws into caller code.** A rejected entry is reported and dropped rather than raised: business code can do nothing useful with a logging credential fault, and turning one into an application fault would be worse than the silence this release removes.
+
+### Added
+- **`fatal()` on `LogUtils` and on the console fallback.** `CloudLoggingService` has always supported the FATAL level, but `LogUtils` mapped only info/error/warn/debug, so the level was unreachable through the documented domain logger.
+
+### Removed
+- **The `https` dependency.** Node's `https` is a built-in module and `require('https')` never resolved to that package; it was dead weight and an unnecessary supply-chain surface in every consumer's tree.
+
+### Docs
+- `docs/searching.md` — new. Finding entries in the Cloud Logging dashboard: query syntax, which fields exist, what the platform adds, and what to check when nothing comes back.
+- `docs/version-control.md` — new. What the three version numbers mean and which changes force a major release.
+
+### Tests
+- 91 → 104. New `test/ConfigResolution.test.js` covering service-key resolution and the placeholder defaults; new cases for rejection handling, retry suppression and formatting failures.
+
 ## v1.1.0
 
 Hardening pass. **No breaking change** — every default is preserved and no call signature moved. Audit and remediation plan: `docs/plan/package-hardening-and-cap-integration-2026-10-05.md`.
