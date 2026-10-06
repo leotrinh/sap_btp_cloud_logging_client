@@ -112,12 +112,23 @@ describe('Network Error Handling', () => {
       }).not.toThrow();
     });
 
-    it('should store original handlers properly', () => {
-      // Test that original handlers are stored
-      logger._setupGlobalErrorHandling();
-      expect(logger._originalHandlers).toBeDefined();
-      expect(logger._originalHandlers.uncaughtException).toBeDefined();
-      expect(logger._originalHandlers.unhandledRejection).toBeDefined();
+    // Replaced in the v1.0.8 hardening pass. The previous assertion covered
+    // `_originalHandlers`, a field that only existed to support replacing the
+    // application's process listeners wholesale. The package no longer does
+    // that, so the contract under test is now "add, never replace".
+    it('should add its listeners without removing the application\'s own', () => {
+      const appHandler = () => {};
+      process.on('uncaughtException', appHandler);
+      const before = process.listeners('uncaughtException').length;
+
+      try {
+        logger._setupGlobalErrorHandling();
+
+        expect(process.listeners('uncaughtException')).toContain(appHandler);
+        expect(process.listeners('uncaughtException').length).toBeGreaterThan(before - 1);
+      } finally {
+        process.removeListener('uncaughtException', appHandler);
+      }
     });
 
     it('should identify Cloud Logging errors correctly', () => {

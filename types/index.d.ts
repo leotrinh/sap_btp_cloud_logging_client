@@ -41,9 +41,21 @@ export interface CloudLoggingConfig {
 	// BTP Cloud Logging field mapping
 	enableSAPFieldMapping?: boolean; // Default: true
 	removeOriginalFieldsAfterMapping?: boolean; // Default: true
+	/**
+	 * Redact sensitive metadata keys before shipping. Default: true.
+	 * Set to false only if your own field names collide with the redaction list
+	 * (substring match on password/token/secret/...) and you need the raw values.
+	 */
+	sanitizeMetadata?: boolean;
 
 	// Error handling
-	preventUncaughtExceptions?: boolean; // Default: true
+	/**
+	 * @deprecated Defaults to true today for backward compatibility only.
+	 * The default becomes false in 2.0.0 — set it explicitly to pin the behaviour.
+	 * When enabled the package registers its own process-level error listeners
+	 * alongside yours; Node does not terminate while any listener is registered.
+	 */
+	preventUncaughtExceptions?: boolean; // Default: true (deprecated)
 
 	// Fallback options
 	fallbackToConsole?: boolean;
@@ -95,7 +107,14 @@ export interface FormattedLogEntry {
 	subaccount?: string; // Made optional to allow deletion
 	hostname: string;
 	pid: number;
+	/**
+	 * @deprecated Emitted alongside `correlation_id` for backward compatibility only.
+	 * Cloud Logging derives a trace id from `correlation_id`, not from this field.
+	 * Removed in 2.0.0 — query `correlation_id` instead.
+	 */
 	correlationId?: string;
+	/** Correlation id as Cloud Logging reads it; the platform derives `trace_id` from this field. */
+	correlation_id?: string;
 	stack?: string;
 	request?: RequestInfo;
 	// BTP Cloud Logging standard fields
