@@ -200,6 +200,32 @@ Redaction itself is **fail-closed** — `sanitize()` builds a new object and nev
 
 **Fix:** format outside the transport try, or tag the error, so a formatting failure is reported once and dropped instead of retried.
 
+### A21 — HIGH: a malformed service key destroys working configuration instead of falling back to it
+
+Found while checking whether the Java package's pretty-printed-`.env` bug had an analogue here (2026-10-06). It does not — we depend on no `.env` reader — but the same input reaches us through the same copy-paste and fails worse.
+
+`JSONUtils.getEnvJSONObject()` returns `{}` when `JSON.parse` fails. `{}` is truthy, so `_resolveBaseConfig()`'s `if (serviceKey)` passes and `fromServiceKey({})` runs on an empty object, producing `ingestEndpoint: 'https://undefined'` with `username`, `password` and the rest `undefined`. That result is spread **over** the resolved defaults, so a malformed `BTP_LOGGING_SRV_KEY_CRED` does not degrade to the discrete `BTP_LOGGING_*` variables — it overwrites them.
+
+Reproduced with valid discrete configuration present alongside a truncated service key:
+
+```
+BTP_LOGGING_INGEST_ENDPOINT, BTP_LOGGING_USERNAME, BTP_LOGGING_PASSWORD   all set correctly
+BTP_LOGGING_SRV_KEY_CRED = '{"ingest-endpoint": "real.example.invalid",'   truncated
+
+-> getEnvJSON failed: SyntaxError: Expected double-quoted property name...
+-> throws: Username and password are required for basic authentication
+```
+
+Three things wrong, in order of how much they cost:
+
+- **A working configuration is discarded.** The discrete variables were valid and sufficient; the package refuses to use them because an unrelated optional variable is malformed.
+- **The error names the wrong cause.** It reports missing credentials when the credentials are present and correct. An operator reading it checks the username and password — the two things that are fine — and the actual culprit is never mentioned. Same shape as the Java package's `.env` failure, which named the credential variable rather than the file that mangled it.
+- **The two entry points fail differently.** `createLogger()` throws out of the constructor, crashing an application at startup unless it catches. `LogUtils` swallows it in `_initializeWithRetry()`, retries three times and settles into console-only for the life of the process — so the same misconfiguration is a loud crash on one path and permanent silent log loss on the other.
+
+How it happens in practice: `cf service-key` prints the key pretty-printed across many lines, and a line-oriented `.env` reader truncates it at the first newline. The consumer sees valid-looking configuration and an error about credentials.
+
+**Fix:** return `null` rather than `{}` on parse failure so the `if (serviceKey)` branch is not taken; and when a service key is present but unparseable, say so — the message must name `BTP_LOGGING_SRV_KEY_CRED`, not the credentials it clobbered. Falling back to the discrete variables is then automatic. Phase 2, with the other configuration work; non-breaking, since every behaviour it changes is currently a failure.
+
 ### A20 — MEDIUM: mTLS is reachable by exactly one route, and no test has ever executed it
 
 Prompted by the Java package discovering its own mTLS path was unreachable dead code (2026-10-06). Ours is not dead, but it is unexercised, and two of the three ways a consumer would try to reach it fail.
