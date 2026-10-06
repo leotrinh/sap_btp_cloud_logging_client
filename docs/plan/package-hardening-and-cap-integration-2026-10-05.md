@@ -224,7 +224,19 @@ Three things wrong, in order of how much they cost:
 
 How it happens in practice: `cf service-key` prints the key pretty-printed across many lines, and a line-oriented `.env` reader truncates it at the first newline. The consumer sees valid-looking configuration and an error about credentials.
 
-**Fix:** return `null` rather than `{}` on parse failure so the `if (serviceKey)` branch is not taken; and when a service key is present but unparseable, say so — the message must name `BTP_LOGGING_SRV_KEY_CRED`, not the credentials it clobbered. Falling back to the discrete variables is then automatic. Phase 2, with the other configuration work; non-breaking, since every behaviour it changes is currently a failure.
+**Fix — and the obvious version of it is wrong.** Three cases, two different policies, because the right behaviour depends on whether the input looks deliberate:
+
+| Service key | Policy | Why |
+|---|---|---|
+| unparseable | ignore it, fall through to the discrete variables, warn naming `BTP_LOGGING_SRV_KEY_CRED` | broken JSON is an accident; the operator did not choose to send it |
+| parseable but incomplete | **refuse**, naming which fields the *key* is missing | a parseable key is a deliberate selection. Completing it from unrelated variables would ship logs under a credential the operator did not know they had chosen, with no way to tell which one was used |
+| parseable and complete | use it | — |
+
+The naive fix — filtering `undefined` out of the spread, or returning `null` from `getEnvJSONObject()` and nothing else — collapses those two policies into one and silently introduces the behaviour the middle row forbids. Verified that the incomplete case currently reaches the right *outcome* by the wrong *mechanism*: a key carrying only `ingest-endpoint`, alongside correct discrete variables, throws `Username and password are required for basic authentication`. It refuses, which is correct, but by clobbering rather than by checking, and the message names the credentials instead of saying the key lacks them. `dashboardEndpoint` is collateral in the same spread.
+
+So: return `null` on parse failure so the branch is skipped, and add an explicit completeness check for the parseable case with a message that names the key and the missing fields. Phase 2, with the other configuration work; non-breaking, since every behaviour it changes is currently a failure.
+
+The malformed-degrades / partial-refuses split is agreed with the Java package (2026-10-06), where it is deliberate and now pinned by test. Ours matches on the second row by accident and fails the first; both rows need a test here for the same reason they added one — correct-by-construction survives exactly until the next refactor turns a fall-through into a return.
 
 ### A20 — MEDIUM: mTLS is reachable by exactly one route, and no test has ever executed it
 
