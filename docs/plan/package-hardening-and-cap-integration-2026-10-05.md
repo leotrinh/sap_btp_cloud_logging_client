@@ -294,12 +294,24 @@ The decision that matters more than the algorithm: **shed by level, least import
 2. Accept an explicit `messageKey` in metadata, used as the cache key when present. Exact, but only for consumers who opt in.
 3. Skip suppression in the Node package and rely on the byte budget alone.
 
-This needs deciding before implementation, because it changes what "suppressed" means between the two packages and therefore what an operator reading a shared dashboard can conclude.
+**Decided (2026-10-06): option 1 plus option 2 as an override.** Normalize the message — digits, UUIDs and hex runs only, nothing clever — and use an explicit `messageKey` from metadata as the key when the consumer supplies one. Option 3 concedes too much: the dominant noise source in Node *is* a templated message in a loop, so without normalization suppression does nothing at all.
 
-**Two more Node-specific hazards**, both instances of `coding.C5`:
+Two conditions, both from the Java package and both adopted:
 
-- A byte budget must measure **bytes**, not `str.length`, which counts UTF-16 units. Measured: `'Đơn hàng đã được xử lý thành công'` is 33 units and 47 bytes (1.42×). Sizing a byte bucket with `.length` under-counts Vietnamese content by roughly half.
-- Truncation must cut on codepoint boundaries. `'ab🚀cd'.slice(0, 3)` yields a lone surrogate; `[...s].slice(0, 3).join('')` is correct. The Java package warns about the same split from the other side of the encoding.
+- **Name the counter `suppressedSimilar`, not `suppressedDuplicates`.** Theirs means "this exact statement fired N times"; ours means "this statement *shape* fired N times, with a heuristic deciding what a shape is". Different things deserve different names, and the name is read at the point of use while a doc is not.
+- **Put the normalized key in the suppression summary**, e.g. `suppressed 48213 of "order <num> rejected"`. It makes the heuristic auditable — an operator can see whether the merge was right, which a bare count never shows.
+
+The earlier concern that an operator would compare the two packages' numbers side by side was overweighted: their counter is exposed per application on an actuator endpoint, not shipped as a log field, so nobody reads both in one index.
+
+**Units: characters for truncation, bytes for the budget — deliberately different, because they bound different resources.** Truncation bounds heap, and a JS string's memory cost tracks its UTF-16 length, so caps in characters are the correct unit there. The budget bounds egress, which is billed and retained in bytes. The mismatch is intentional and documented so it does not read as an oversight; the Java package reached the same split from the JVM side.
+
+**Three Node-specific hazards**, all instances of `coding.C5`:
+
+- A byte budget must measure **bytes**, not `str.length`, which counts UTF-16 units. Measured: `'Đơn hàng đã được xử lý thành công'` is 33 units and 47 bytes (1.42×). Sizing a byte bucket with `.length` under-counts Vietnamese content by nearly half, and this landscape carries Vietnamese content.
+- Truncation must cut on codepoint boundaries. `'ab🚀cd'.slice(0, 3)` yields a lone surrogate; `[...s].slice(0, 3).join('')` is correct.
+- **Charge the budget against the serialized form, not the raw string.** JSON escaping changes the byte count and `Buffer.byteLength(raw)` therefore disagrees with the wire. Measured overheads: a real stack trace +2.9%, a quote-heavy string (embedded JSON, SQL) +29%, `a\tb\\c` +75%. The divergence is largest on exactly the payloads that threaten the budget. Serialize once, charge the result, send the same bytes — not least because serializing twice doubles the CPU on a per-log-call path.
+
+A related correctness note rather than a volume one: an unpaired surrogate costs **1 byte** on the Java side, because the JDK encoder substitutes `?`. In Node it is neither 1 nor the 3 that `Buffer.byteLength` reports — `JSON.stringify('\ud83d')` emits the six-character escape `\ud83d`, so the wire carries 6 bytes inside the quotes. Another reason the count has to come from the serialized form.
 
 **Counters stay separate from the shipper's drop counters** (A16/B3): "we chose not to send this" and "we could not send this" are different problems with different fixes. `truncatedEntries`, `shedDebug`, `shedInfo`, `shedWarn`, `budgetBytesAvailable`, `suppressedDuplicates`.
 
