@@ -39,6 +39,7 @@ Ship faster With AI Dev Team
 - [**Architecture & Design**](docs/Architecture.md) - Internal components and multi-subaccount patterns.
 - [**Detailed Usage Guide**](docs/Usage.md) - Configuration references and advanced features.
 - [**Release Notes**](docs/Release.md) - Release process.
+- [**Finding Your Logs**](docs/searching.md) - Searching the Cloud Logging dashboard: query syntax, which fields exist, and what to check when nothing comes back.
 - [**Version Control**](docs/version-control.md) - What the three version numbers mean, and which changes force a major release.
 
 ## Project Structure
@@ -74,6 +75,7 @@ sap-btp-cloud-logging-client/
 │   ├── Usage.md
 │   ├── Release.md
 │   ├── BTP-Field-Mapping.md
+│   ├── searching.md
 │   └── version-control.md
 └── test/
     └── CloudLoggingService.test.js

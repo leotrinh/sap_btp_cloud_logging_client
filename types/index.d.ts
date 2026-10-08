@@ -179,6 +179,7 @@ export interface ConsoleLogger {
 	error(message: string, metadata?: object): void;
 	warn(message: string, metadata?: object): void;
 	debug(message: string, metadata?: object): void;
+	fatal(message: string, metadata?: object): void;
 }
 
 export declare const Logger: ConsoleLogger;
@@ -186,7 +187,7 @@ export declare function sanitize(obj: any, depth?: number): any;
 
 // ─── LogUtils (domain logger) ─────────────────────────────────────────────
 
-export type LogLevel = 'info' | 'error' | 'warn' | 'debug';
+export type LogLevel = 'info' | 'error' | 'warn' | 'debug' | 'fatal';
 
 export interface LogApiOptions {
 	source?: string;
@@ -228,6 +229,7 @@ export declare class LogUtils {
 	error(message: string, errorOrMeta?: Error | object, metadata?: object): void;
 	warn(message: string, metadata?: object): void;
 	debug(message: string, metadata?: object): void;
+	fatal(message: string, metadata?: object): void;
 	setLoggingLevel(level: string): void;
 	logApi(level: LogLevel, message: string, options?: LogApiOptions): void;
 	apiInfo(message: string, options?: LogApiOptions): void;

@@ -160,6 +160,67 @@ describe('request handling in the formatted payload (A2)', () => {
   });
 });
 
+// A18 — sanitize() throws if any metadata getter throws. That escaped format()
+// into the transport's catch, which could not tell a formatting failure from a
+// network one, so an entry that could never be built was retried with backoff.
+describe('an entry that cannot be formatted is dropped, not retried (A18)', () => {
+  function hostileMetadata() {
+    const meta = { orderId: 'A1' };
+    Object.defineProperty(meta, 'boom', { enumerable: true, get() { throw new Error('getter exploded'); } });
+    return meta;
+  }
+
+  it('does not throw into the caller', async () => {
+    const svc = new CloudLoggingService({
+      ingestEndpoint: 'https://example.invalid', username: 'u', password: 'p',
+      preventUncaughtExceptions: false,
+    });
+
+    await expect(svc.info('boom', hostileMetadata())).resolves.toBeUndefined();
+  });
+
+  it('schedules no retry, because the entry will never format', async () => {
+    const svc = new CloudLoggingService({
+      ingestEndpoint: 'https://example.invalid', username: 'u', password: 'p',
+      preventUncaughtExceptions: false,
+    });
+
+    await svc.info('boom', hostileMetadata());
+
+    expect(svc.retryTimer).toBeNull();
+    expect(svc.retryCount).toBe(0);
+  });
+
+  it('notifies onError with the formatting failure', async () => {
+    const onError = jest.fn();
+    const svc = new CloudLoggingService({
+      ingestEndpoint: 'https://example.invalid', username: 'u', password: 'p',
+      preventUncaughtExceptions: false, onError,
+    });
+
+    await svc.info('boom', hostileMetadata());
+
+    expect(onError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ level: 'INFO' }));
+  });
+});
+
+// A15d — CloudLoggingService has always supported FATAL, but LogUtils mapped
+// only info/error/warn/debug, so the level was unreachable through the
+// documented domain logger and the console fallback had no fatal at all.
+describe('fatal is reachable through both loggers (A15d)', () => {
+  it('the console fallback has a fatal level', () => {
+    const logger = require('../lib/Logger');
+
+    expect(typeof logger.fatal).toBe('function');
+  });
+
+  it('LogUtils exposes fatal', () => {
+    const { LogUtils } = require('../lib/LogUtils');
+
+    expect(typeof LogUtils.prototype.fatal).toBe('function');
+  });
+});
+
 // Cloud Logging derives a W3C trace id from `correlation_id` by stripping its
 // hyphens, and ignores `correlationId`. Verified against the live index: the
 // same client writing both names minutes apart produced a `trace_id` only for
