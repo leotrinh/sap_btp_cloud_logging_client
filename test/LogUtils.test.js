@@ -55,11 +55,12 @@ describe('LogUtils', () => {
     expect(cloudLogger.error.mock.calls[0][1].orderId).toBe('A1');
   });
 
-  it('tags API logs with the API type and the supplied options', () => {
+  it('tags API logs with record_kind api and the supplied options', () => {
     utils.apiInfo('called', { endpoint: '/orders', method: 'GET', statusCode: 200 });
 
     const meta = cloudLogger.info.mock.calls[0][1];
-    expect(meta.type).toBe('API');
+    expect(meta.record_kind).toBe('api');
+    expect(meta.type).toBeUndefined();
     expect(meta.endpoint).toBe('/orders');
     expect(meta.statusCode).toBe(200);
   });
@@ -72,17 +73,17 @@ describe('LogUtils', () => {
     expect(meta.response).toBeUndefined();
   });
 
-  it('tags event logs with the EVENT type', () => {
+  it('tags event logs with record_kind event', () => {
     utils.eventInfo('received', { eventName: 'OrderCreated' });
 
-    expect(cloudLogger.info.mock.calls[0][1].type).toBe('EVENT');
+    expect(cloudLogger.info.mock.calls[0][1].record_kind).toBe('event');
   });
 
-  it('tags base logs with the BASE type and defaults the component', () => {
+  it('tags base logs with record_kind base and defaults the component', () => {
     utils.baseInfo('started');
 
     const meta = cloudLogger.info.mock.calls[0][1];
-    expect(meta.type).toBe('BASE');
+    expect(meta.record_kind).toBe('base');
     expect(meta.component).toBe('system');
   });
 

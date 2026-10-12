@@ -123,12 +123,17 @@ export interface FormattedLogEntry {
 	[key: string]: any;
 }
 
+/**
+ * The safe subset of an HTTP request, emitted under `request`. These are
+ * payload fields, so they follow the same snake_case contract as the
+ * top-level ones. Renamed from `userAgent` / `correlationId` in 2.0.0.
+ */
 export interface RequestInfo {
 	method: string;
 	url: string;
-	userAgent: string;
+	user_agent: string;
 	ip: string;
-	correlationId?: string;
+	correlation_id?: string;
 }
 
 export interface MiddlewareOptions {

@@ -1,3 +1,6 @@
+// winston is an optional peer dependency from 2.0.0 — install it yourself:
+//   npm install winston
+// The package never loads it unless you access WinstonTransport.
 const winston = require('winston');
 const { createLogger, WinstonTransport } = require('sap-btp-cloud-logging-client');
 

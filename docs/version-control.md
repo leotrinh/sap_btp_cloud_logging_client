@@ -83,6 +83,8 @@ The lesson is not that the change was wrong — removing duplicated fields was a
 
 ## Applying this to planned work
 
+> Everything in the table below shipped in `2.0.0` on the date of that release. It is kept as a worked example of how the rule decides a version number.
+
 The hardening plan (`docs/plan/package-hardening-and-cap-integration-2026-10-05.md`) splits its remaining work by this rule, not by convenience:
 
 | Change | Release | Reason |

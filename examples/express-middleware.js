@@ -16,10 +16,10 @@ app.use(middleware(logger, {
 }));
 
 app.get('/', async (req, res) => {
-  await logger.info('Home page accessed', {
-    correlationId: req.get('x-correlation-id'),
-    userAgent: req.get('user-agent')
-  });
+  // Passing `req` is enough. The formatter extracts a safe subset into
+  // `request` and promotes the correlation id out of the header, which is
+  // what lets Cloud Logging derive a trace_id for this entry.
+  await logger.info('Home page accessed', { req });
   
   res.json({ message: 'Hello World' });
 });
@@ -28,6 +28,8 @@ app.get('/error', async (req, res) => {
   try {
     throw new Error('Test error');
   } catch (error) {
+    // `correlationId` is still accepted as input and is emitted as
+    // `correlation_id`. `correlation_id` and `requestId` work identically.
     await logger.error('Test error occurred', {
       correlationId: req.get('x-correlation-id'),
       error: error.message,

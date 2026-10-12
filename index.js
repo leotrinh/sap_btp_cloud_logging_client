@@ -2,7 +2,7 @@ const CloudLoggingService = require('./lib/CloudLoggingService');
 const LogFormatter = require('./lib/LogFormatter');
 const ConfigManager = require('./lib/ConfigManager');
 const Middleware = require('./lib/Middleware');
-const WinstonTransport = require('./lib/WinstonTransport');
+const getWinstonTransport = require('./lib/WinstonTransport');
 const Logger = require('./lib/Logger');
 const { sanitize } = require('./lib/Logger');
 const logUtils = require('./lib/LogUtils');
@@ -19,7 +19,6 @@ module.exports = {
   ConfigManager,
   createLogger: (config) => new CloudLoggingService(config),
   middleware: Middleware,
-  WinstonTransport,
 
   // Console fallback logger + sanitize utility
   Logger,
@@ -30,3 +29,10 @@ module.exports = {
   LogUtils,
   createLogUtils: () => new LogUtils(),
 };
+
+// Resolved on access, not on import: winston is an optional peer dependency
+// and must not be required by consumers who never touch this transport.
+Object.defineProperty(module.exports, 'WinstonTransport', {
+  enumerable: true,
+  get: getWinstonTransport,
+});
