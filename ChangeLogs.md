@@ -1,5 +1,47 @@
 # Changelogs
 
+## v2.0.0
+
+**Breaking: two shipped field names change.** No call signature moves and no consumer has to change code — every input spelling is still accepted. What changes is the JSON that reaches the log store, so **dashboards, saved searches and alerts keyed on the old names must be updated**.
+
+The purpose is one field vocabulary across the Node and Java packages shipping into the same Cloud Logging instance.
+
+### Removed
+
+| Was | Now | Why |
+|---|---|---|
+| `correlationId` | `correlation_id` | Cloud Logging reads `correlation_id` semantically — it strips the hyphens and derives a W3C trace-context `trace_id`. The camelCase name was stored but inert, so **no entry written before 1.1.0 could join a trace**. |
+| `timestamp` | `written_at` | The name the Java package and the platform's own conventions use. |
+
+Both were emitted from `1.0.0`, so every dashboard built against this package uses the old names.
+
+### Not changed — no code migration needed
+
+- **Every input spelling still works.** `logger.info(msg, { correlationId })`, `{ correlation_id }` and `{ requestId }` all produce `correlation_id` on the entry. Callers are untouched.
+- No function, option or default changed.
+- `msg`, `level`, `app_name`, `organization_name`, `environment`, `hostname`, `pid` and the `request` subset are unchanged.
+
+### Migration
+
+Replace the field name in any dashboard query, saved search, alert or index pattern:
+
+```
+correlationId: "..."   ->   correlation_id: "..."
+timestamp >= "..."     ->   written_at >= "..."
+```
+
+Both old and new entries live in the index for the length of your retention period, so a query that must span the changeover needs to match both:
+
+```
+correlation_id: "abc" or correlationId: "abc"
+```
+
+The platform's own `@timestamp` is unaffected and remains what the dashboard sorts on by default.
+
+### Note
+
+`@timestamp` (arrival) and `written_at` (authorship) are different instants and differ by the delivery delay. Sort explicitly if that distinction matters.
+
 ## v1.2.0
 
 Delivery-correctness pass. **No breaking change** — no default changes, no call signature moves, and no field is removed from the payload.

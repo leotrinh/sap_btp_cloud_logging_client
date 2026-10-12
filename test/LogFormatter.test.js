@@ -22,7 +22,7 @@ describe('LogFormatter', () => {
         environment: 'test',
         hostname: expect.any(String),
         pid: expect.any(Number),
-        timestamp: expect.any(String),
+        written_at: expect.any(String),
         app_name: 'TestApp', // BTP mapped field
         organization_name: 'test-subaccount' // BTP mapped field
       });
@@ -77,14 +77,14 @@ describe('LogFormatter', () => {
         const metadata = { correlationId: 'corr-123' };
         const result = formatter.format('INFO', 'Test message', metadata);
 
-        expect(result.correlationId).toBe('corr-123');
+        expect(result.correlation_id).toBe('corr-123');
       });
 
       it('should handle request ID as correlation ID fallback', () => {
         const metadata = { requestId: 'req-123' };
         const result = formatter.format('INFO', 'Test message', metadata);
 
-        expect(result.correlationId).toBe('req-123');
+        expect(result.correlation_id).toBe('req-123');
       });
 
       it('should prioritize correlation ID over request ID', () => {
@@ -94,7 +94,7 @@ describe('LogFormatter', () => {
         };
         const result = formatter.format('INFO', 'Test message', metadata);
 
-        expect(result.correlationId).toBe('corr-123');
+        expect(result.correlation_id).toBe('corr-123');
       });
 
       it('should add stack trace for ERROR level when enabled', () => {
@@ -275,7 +275,7 @@ describe('LogFormatter', () => {
       expect(result.msg).toBe('Test message');
       // app_name should be set from config when metadata provides undefined
       expect(result.app_name).toBe('TestApp');
-      expect(result.correlationId).toBe('');
+      expect(result.correlation_id).toBeUndefined();
       expect(result.customField).toBeNull();
       
       // Should still have mapped fields from config when metadata doesn't provide them
