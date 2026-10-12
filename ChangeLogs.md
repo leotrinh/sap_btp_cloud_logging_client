@@ -1,5 +1,18 @@
 # Changelogs
 
+## v2.0.1
+
+Documentation and packaging only. No code change, no behaviour change.
+
+### Fixed
+- **Added the missing `LICENSE` file.** `package.json` declared `"license": "MIT"` and listed `LICENSE` under `files`, but no such file existed, so every version published so far shipped the SPDX identifier without the licence text it refers to.
+- **Replaced real instance identifiers in the documentation.** The service-key example in `README.md` and `.env-sample` carried a live Cloud Logging instance GUID in three endpoint hostnames, and the README left one real `ingest-username` un-redacted while every neighbouring credential field already read `<sensitive>`. All are placeholders now. The credential itself has been revoked separately.
+- **Removed the author's own identifiers from the shipped examples**, which configured themselves with a personal application and subaccount name.
+
+### Changed
+- **Merged two pairs of near-duplicate files.** `docs/SAP-Field-Mapping.md` and `docs/BTP-Field-Mapping.md` differed by three words; two field-mapping demos differed by the wording of four log lines. One of each remains, under the name `package.json` and the README already referenced.
+- **`docs/BTP-Field-Mapping.md` refreshed for 2.0.0** — the renamed fields, the fields the platform adds on arrival, and the metadata keys the formatter consumes.
+
 ## v2.0.0
 
 **Breaking: two shipped field names change.** No call signature moves and no consumer has to change code — every input spelling is still accepted. What changes is the JSON that reaches the log store, so **dashboards, saved searches and alerts keyed on the old names must be updated**.
