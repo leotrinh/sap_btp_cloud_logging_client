@@ -110,8 +110,8 @@ Only `lib/WinstonTransport.js` needs winston, yet `index.js` requires it eagerly
 `lib/LogUtils.js:62-63`
 
 ```js
-subaccount: process.env.BTP_SUBACCOUNT_ID || 'LEO_DEV_PAYG',
-application: process.env.BTP_APPLICATION_NAME || 'LEO_APP_DEV',
+subaccount: process.env.BTP_SUBACCOUNT_ID || '<the author\'s own subaccount name>',
+application: process.env.BTP_APPLICATION_NAME || '<the author\'s own app name>',
 ```
 
 A consumer who forgets the env var gets the author's personal identifiers in their production logs. `ConfigManager.getDefaultConfig()` uses different fallbacks again (`'PAYG_DEVELOPMENT'` / `'unknown-app'`), so the two paths disagree.

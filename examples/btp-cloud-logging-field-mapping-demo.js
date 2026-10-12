@@ -7,9 +7,9 @@ async function demoSAPFieldMapping() {
   // Test with BTP Cloud Logging enabled (default)
   console.log('1. Testing with BTP Cloud Logging ENABLED (default):');
   const loggerWithMapping = createLogger({
-    applicationName: 'LEO_APP',
+    applicationName: 'demo-app',
     environment: 'development',
-    subAccountId: 'Leo Test System',
+    subAccountId: 'account_demo-org_DEV',
     enableSAPFieldMapping: true // This is the default
   });
 
@@ -29,9 +29,9 @@ async function demoSAPFieldMapping() {
   // Test with BTP Cloud Logging disabled
   console.log('2. Testing with BTP Cloud Logging DISABLED:');
   const loggerWithoutMapping = createLogger({
-    applicationName: 'LEO_APP',
+    applicationName: 'demo-app',
     environment: 'development',
-    subAccountId: 'Leo Test System',
+    subAccountId: 'account_demo-org_DEV',
     enableSAPFieldMapping: false
   });
 
