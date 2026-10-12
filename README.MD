@@ -72,6 +72,7 @@ a trace. Full detail in [ChangeLogs.md](ChangeLogs.md).
 - [**Detailed Usage Guide**](docs/Usage.md) - Configuration references and advanced features.
 - [**Release Notes**](docs/Release.md) - Release process.
 - [**Finding Your Logs**](docs/searching.md) - Searching the Cloud Logging dashboard: query syntax, which fields exist, and what to check when nothing comes back.
+- [**Field Mapping**](docs/BTP-Field-Mapping.md) - Which internal names are mapped to BTP standard fields, what 2.0.0 renamed, and what the platform adds on arrival.
 - [**Version Control**](docs/version-control.md) - What the three version numbers mean, and which changes force a major release.
 
 ## Project Structure
