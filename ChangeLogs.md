@@ -1,5 +1,66 @@
 # Changelogs
 
+## v2.0.0
+
+**Breaking: two shipped field names change.** No call signature moves and no consumer has to change code — every input spelling is still accepted. What changes is the JSON that reaches the log store, so **dashboards, saved searches and alerts keyed on the old names must be updated**.
+
+The purpose is one field vocabulary across the Node and Java packages shipping into the same Cloud Logging instance.
+
+### Removed
+
+| Was | Now | Why |
+|---|---|---|
+| `correlationId` | `correlation_id` | Cloud Logging reads `correlation_id` semantically — it strips the hyphens and derives a W3C trace-context `trace_id`. The camelCase name was stored but inert, so **no entry written before 1.1.0 could join a trace**. |
+| `timestamp` | `written_at` | The name the Java package and the platform's own conventions use. |
+
+Both were emitted from `1.0.0`, so every dashboard built against this package uses the old names.
+
+| `request.userAgent` | `request.user_agent` | Nested payload fields follow the same contract as top-level ones. |
+| `request.correlationId` | `request.correlation_id` | Same. |
+| `type: "API"` / `"EVENT"` / `"BASE"` | `record_kind: "api"` / `"event"` / `"base"` | `type` is SAP's own discriminator, always `"log"` in their encoder. It only stays useful if nobody else writes to it, so it is now **reserved**: a value you pass as `type` is preserved under `record_kind` rather than dropped. |
+
+### Changed — behaviour
+
+- **`preventUncaughtExceptions` now defaults to `false`.** The package no longer installs process-level error handlers unless asked. While any listener is registered Node will not terminate, so a library that installs one is deciding the host's crash behaviour on its behalf. Set `preventUncaughtExceptions: true` to keep the old behaviour.
+- **`winston` is now an optional peer dependency.** It is no longer installed for consumers who do not use `WinstonTransport`, and the package never loads it at import time — the transport class is built on first access. If you use it: `npm install winston`.
+- **`engines` raised to `>= 18`.** Node 14 and 16 are end-of-life. npm treats this as advisory and warns rather than failing, unless you have set `engine-strict=true`.
+
+### Fixed
+
+- **The correlation id is promoted out of the request header.** A caller passing only `{ req }` had the id read out of the header and then buried in the nested `request` object, which the platform does not read — so the entry got no `trace_id` even though the id was in hand. It is now used as the top-level `correlation_id` when the caller supplies none.
+- **Input keys are consumed rather than passed through.** `correlationId` used to survive as ordinary metadata alongside the canonical field.
+
+### Removed — examples
+
+- `examples/utils/LogUtils.js` and `.ts`. They were a pre-1.0.8 copy-paste version of the now-bundled `LogUtils`, they emitted the old field names, and they `require`d a `./logger` module that does not exist — so they could not run. Use `examples/log-utils-built-in-usage.js`.
+
+### Not changed — no code migration needed
+
+- **Every input spelling still works.** `logger.info(msg, { correlationId })`, `{ correlation_id }` and `{ requestId }` all produce `correlation_id` on the entry. Callers are untouched.
+- No function or option was renamed or removed. `correlationIdHeader`, `sanitizeMetadata` and the rest keep their names — those are JavaScript API names, which stay camelCase. Only **payload field names** follow the snake_case contract shared with the Java package.
+- `msg`, `level`, `app_name`, `organization_name`, `environment`, `hostname`, `pid` and the `request` subset are unchanged.
+
+### Migration
+
+Replace the field name in any dashboard query, saved search, alert or index pattern:
+
+```
+correlationId: "..."   ->   correlation_id: "..."
+timestamp >= "..."     ->   written_at >= "..."
+```
+
+Both old and new entries live in the index for the length of your retention period, so a query that must span the changeover needs to match both:
+
+```
+correlation_id: "abc" or correlationId: "abc"
+```
+
+The platform's own `@timestamp` is unaffected and remains what the dashboard sorts on by default.
+
+### Note
+
+`@timestamp` (arrival) and `written_at` (authorship) are different instants and differ by the delivery delay. Sort explicitly if that distinction matters.
+
 ## v1.2.0
 
 Delivery-correctness pass. **No breaking change** — no default changes, no call signature moves, and no field is removed from the payload.

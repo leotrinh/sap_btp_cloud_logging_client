@@ -110,7 +110,7 @@ describe('request handling in the formatted payload (A2)', () => {
       method: 'POST',
       url: '/orders',
       ip: '10.0.0.1',
-      headers: { authorization: 'Bearer super-secret-token', cookie: 'session=abc' },
+      headers: { authorization: 'Bearer super-secret-token', cookie: 'session=abc', 'user-agent': 'curl/8' },
       get(name) { return this.headers[String(name).toLowerCase()]; },
     };
     req.res = { req };
@@ -142,6 +142,37 @@ describe('request handling in the formatted payload (A2)', () => {
 
     expect(entry.request.method).toBe('POST');
     expect(entry.request.url).toBe('/orders');
+  });
+
+  // Nested payload fields follow the same snake_case contract as top-level
+  // ones. Before 2.0.0 these sat in camelCase directly beside correlation_id.
+  it('names the nested request fields in snake_case', () => {
+    const entry = formatter.format('INFO', 'Incoming request', { req: fakeRequest() });
+
+    expect(entry.request.user_agent).toBeDefined();
+    expect(entry.request.userAgent).toBeUndefined();
+    expect(entry.request.correlationId).toBeUndefined();
+  });
+
+  // The header carries the id, the formatter already reads it, and before this
+  // it went only into the nested object — which the platform does not read, so
+  // the entry got no trace_id despite the id being in hand.
+  it('promotes the correlation id from the request header when the caller passes none', () => {
+    const req = fakeRequest();
+    req.headers['x-correlation-id'] = 'from-header-123';
+
+    const entry = formatter.format('INFO', 'Incoming request', { req });
+
+    expect(entry.correlation_id).toBe('from-header-123');
+  });
+
+  it('prefers an explicit correlation id over the request header', () => {
+    const req = fakeRequest();
+    req.headers['x-correlation-id'] = 'from-header-123';
+
+    const entry = formatter.format('INFO', 'Incoming request', { req, correlationId: 'explicit-456' });
+
+    expect(entry.correlation_id).toBe('explicit-456');
   });
 
   it('redacts sensitive metadata on the createLogger path too (A6)', () => {
@@ -225,7 +256,7 @@ describe('fatal is reachable through both loggers (A15d)', () => {
 // hyphens, and ignores `correlationId`. Verified against the live index: the
 // same client writing both names minutes apart produced a `trace_id` only for
 // the snake_case one. Both are emitted until 2.0.0 drops the camelCase name.
-describe('correlation id is emitted under both names', () => {
+describe('correlation id is emitted only as correlation_id', () => {
   const formatter = new LogFormatter({ applicationName: 'app' });
 
   it('emits correlation_id, which is the name the platform reads', () => {
@@ -234,17 +265,23 @@ describe('correlation id is emitted under both names', () => {
     expect(entry.correlation_id).toBe('corr-4711');
   });
 
-  it('still emits correlationId, so existing queries keep working', () => {
+  it('no longer emits the camelCase name the platform could not read', () => {
     const entry = formatter.format('INFO', 'done', { correlationId: 'corr-4711' });
 
-    expect(entry.correlationId).toBe('corr-4711');
+    expect(entry.correlationId).toBeUndefined();
   });
 
-  it('accepts requestId as the source for both', () => {
-    const entry = formatter.format('INFO', 'done', { requestId: 'req-99' });
+  it('accepts every input spelling, so no caller has to change', () => {
+    expect(formatter.format('INFO', 'x', { correlationId: 'camel' }).correlation_id).toBe('camel');
+    expect(formatter.format('INFO', 'x', { correlation_id: 'snake' }).correlation_id).toBe('snake');
+    expect(formatter.format('INFO', 'x', { requestId: 'req' }).correlation_id).toBe('req');
+  });
 
-    expect(entry.correlation_id).toBe('req-99');
-    expect(entry.correlationId).toBe('req-99');
+  it('names the write time written_at, not timestamp', () => {
+    const entry = formatter.format('INFO', 'done', {});
+
+    expect(entry.written_at).toEqual(expect.any(String));
+    expect(entry.timestamp).toBeUndefined();
   });
 
   it('emits neither when the consumer supplies no correlation id', () => {

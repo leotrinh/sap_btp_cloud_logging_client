@@ -98,7 +98,8 @@ export interface ServiceKey {
 }
 
 export interface FormattedLogEntry {
-	timestamp: string;
+	/** When the client produced the entry. Named `timestamp` before 2.0.0. */
+	written_at: string;
 	level: string;
 	message?: string; // Made optional to allow deletion
 	msg: string; // Add msg field for SAP BTP Cloud Logging filtering
@@ -108,12 +109,11 @@ export interface FormattedLogEntry {
 	hostname: string;
 	pid: number;
 	/**
-	 * @deprecated Emitted alongside `correlation_id` for backward compatibility only.
-	 * Cloud Logging derives a trace id from `correlation_id`, not from this field.
-	 * Removed in 2.0.0 — query `correlation_id` instead.
+	 * Correlation id as Cloud Logging reads it; the platform derives `trace_id`
+	 * from this field. Emitted as `correlationId` before 2.0.0, which the
+	 * platform did not recognise. Still accepted as input under any of
+	 * `correlationId`, `correlation_id` or `requestId`.
 	 */
-	correlationId?: string;
-	/** Correlation id as Cloud Logging reads it; the platform derives `trace_id` from this field. */
 	correlation_id?: string;
 	stack?: string;
 	request?: RequestInfo;
@@ -123,12 +123,17 @@ export interface FormattedLogEntry {
 	[key: string]: any;
 }
 
+/**
+ * The safe subset of an HTTP request, emitted under `request`. These are
+ * payload fields, so they follow the same snake_case contract as the
+ * top-level ones. Renamed from `userAgent` / `correlationId` in 2.0.0.
+ */
 export interface RequestInfo {
 	method: string;
 	url: string;
-	userAgent: string;
+	user_agent: string;
 	ip: string;
-	correlationId?: string;
+	correlation_id?: string;
 }
 
 export interface MiddlewareOptions {

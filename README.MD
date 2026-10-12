@@ -35,6 +35,38 @@ Ship faster With AI Dev Team
 [DISCOUNT 25% - PAY ONE TIME, LIFETIME UPGRADE ](https://claudekit.cc/?ref=VAK416FU)
 ![https://claudekit.cc/?ref=VAK416FU](https://cdn.tinhtd.info/public/go1/ads_ck.png)
 
+## ⚠️ Upgrading to 2.0.0 — read this first
+
+**No code changes are required.** Every call you make today keeps working, and
+every option keeps its name. What changed is the JSON written to the log store,
+so **dashboards, saved searches and alerts must be updated**. They fail by
+returning nothing, not by raising an error, so nothing will tell you.
+
+| Was | Now | Action |
+|---|---|---|
+| `timestamp` | `written_at` | update any query, sort or range on it |
+| `correlationId` | `correlation_id` | update any query on it |
+| `request.userAgent` | `request.user_agent` | update any query on it |
+| `request.correlationId` | `request.correlation_id` | update any query on it |
+| `type: "API" / "EVENT" / "BASE"` | `record_kind: "api" / "event" / "base"` | `type` is now always `"log"` |
+
+Two behaviour changes to be aware of:
+
+- **`preventUncaughtExceptions` now defaults to `false`.** The package no longer
+  installs process-level error handlers unless you ask for it. If you relied on
+  it keeping your process alive, set `preventUncaughtExceptions: true`.
+- **`winston` is now an optional peer dependency.** Only install it if you use
+  `WinstonTransport`: `npm install winston`.
+
+Entries written by older versions keep the old field names for as long as your
+retention period, so a query spanning the upgrade needs both:
+`correlation_id: "abc" or correlationId: "abc"`.
+
+Why these renames: Cloud Logging reads `correlation_id` **semantically** — it
+derives a W3C trace-context `trace_id` from it. Under the old camelCase name
+the value was stored but inert, so no entry this package wrote could ever join
+a trace. Full detail in [ChangeLogs.md](ChangeLogs.md).
+
 ## Documentation
 - [**Architecture & Design**](docs/Architecture.md) - Internal components and multi-subaccount patterns.
 - [**Detailed Usage Guide**](docs/Usage.md) - Configuration references and advanced features.
@@ -56,6 +88,7 @@ sap-btp-cloud-logging-client/
 │   ├── Logger.js              ← console fallback + sanitize (v1.0.8+)
 │   ├── LogUtils.js            ← domain logger singleton (v1.0.8+)
 │   ├── Transport.js
+│   ├── ThrottledReporter.js
 │   ├── Middleware.js
 │   ├── WinstonTransport.js
 │   └── JSONUtils.js
@@ -66,10 +99,8 @@ sap-btp-cloud-logging-client/
 │   ├── express-middleware.js
 │   ├── advanced-usage.js
 │   ├── winston-integration.js
-│   ├── BTPCloudLogger.ts
-│   └── utils/
-│       ├── LogUtils.ts
-│       └── LogUtils.js
+│   ├── log-utils-built-in-usage.js
+│   └── BTPCloudLogger.ts
 ├── docs/
 │   ├── Architecture.md
 │   ├── Usage.md
@@ -134,6 +165,12 @@ BTP_LOGGING_SRV_KEY_CRED ='{
 We'll use username, password from service key for ```basic auth``` for ```mtls``` way seem the key valid max only ```180 days``` we've to create a feature auto create/get new key...etc it complex even we've env ```BTP_LOGGING_SRV_AUTH_TYPE='basic';//allow: basic,mtls``` but not recommend using ```mtls``` this time
 ![ignest expire 180 days](docs/static/ignets-mtls-180-days.png)
 
+> **mTLS is experimental.** The code path exists and is reachable through
+> `BTP_LOGGING_SRV_KEY_CRED` plus `BTP_LOGGING_SRV_AUTH_TYPE=mtls`, but no test
+> exercises it and it has never been run against a real mTLS endpoint. Basic
+> auth is the supported path. Note also that `BTP_LOGGING_SRV_AUTH_TYPE` is
+> honoured **only** on the service-key path, not with the discrete variables.
+
 ### Instance Specify Config
 
 ```
@@ -188,10 +225,11 @@ const logger = createLogger({
   "msg": "User login successful",           // BTP standard field
   "application": "MyApp",                  // Original field
   "app_name": "MyApp",                    // BTP standard field
-  "subaccount": "my-subaccount",           // Original field
+  "subaccount": "my-subaccount",            // Original field
   "organization_name": "my-subaccount",     // BTP standard field
   "level": "INFO",
-  "timestamp": "2026-03-05T12:00:00.000Z"
+  "type": "log",
+  "written_at": "2026-03-05T12:00:00.000Z"
 }
 ```
 
@@ -566,8 +604,12 @@ Treat these fields as reserved package or SAP logging fields:
 
 ```text
 date
-timestamp
+written_at
 @timestamp
+trace_id
+correlation_id
+type
+record_kind
 msg
 message
 level
@@ -580,12 +622,22 @@ hostname
 pid
 ```
 
+`type` and `trace_id` deserve particular care. `type` is a discriminator SAP's
+own encoder sets to `"log"`; this package reserves it and moves any value you
+pass to `record_kind`, so a dashboard can rely on it. `trace_id` is derived by
+the platform from `correlation_id` and must never be written by hand.
+
 ### Event Timestamp Note
 
-The current package examples use `timestamp`. SAP Cloud Logging's JSON ingest
-API recognizes `date` as the event-time field used when indexing a document.
-When `date` cannot be extracted, Cloud Logging uses the time at which the
-payload is parsed.
+From 2.0.0 the package writes `written_at`, matching the Java sibling package
+and SAP's own conventions. SAP Cloud Logging's JSON ingest API also recognizes
+`date` as the event-time field used when indexing a document; when `date`
+cannot be extracted, Cloud Logging uses the time at which the payload is
+parsed, which it records separately as `@timestamp`.
+
+`@timestamp` is **arrival** time and `written_at` is **authorship** time. They
+differ by the delivery delay, and the dashboard sorts on `@timestamp` by
+default — sort explicitly if that distinction matters to you.
 
 For a custom formatter or a future package version, a backward-compatible
 payload may include both fields:

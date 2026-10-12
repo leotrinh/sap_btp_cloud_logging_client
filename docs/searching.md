@@ -26,8 +26,9 @@ level: "ERROR"
 app_name: "my-service" and level: "ERROR"
 app_name: "my-service" and (level: "ERROR" or level: "WARN") and not msg: "health"
 correlation_id: "3f8a1c42-9b07-4d6e-a5f1-2c8e7b40d913"
+record_kind: "api" and level: "ERROR"
 hostname: "api-*"                                   wildcards work on values
-timestamp >= "2026-10-06T00:00:00Z" and level: "ERROR"    ranges work on date fields
+written_at >= "2026-10-06T00:00:00Z" and level: "ERROR"   ranges work on date fields
 ```
 
 `and`, `or`, `not` and parentheses all work.
@@ -44,13 +45,14 @@ correlation_id: "<the id from the failing request>"
 |---|---|
 | `msg` | the log message. `message` is removed after field mapping, so search `msg` |
 | `level` | upper-case: `DEBUG` `INFO` `WARN` `ERROR` `FATAL` |
-| `timestamp` | ISO-8601, set by the client. Date-mapped, so ranges work |
+| `written_at` | ISO-8601, when the client produced the entry. Date-mapped, so ranges work. Named `timestamp` before 2.0.0 |
 | `app_name` | from `BTP_APPLICATION_NAME` |
 | `organization_name` | from `BTP_SUBACCOUNT_ID` |
-| `correlation_id` | set when you pass `correlationId` or `requestId` in metadata |
-| `correlationId` | **deprecated**, still emitted for compatibility — see below |
+| `correlation_id` | set when you pass `correlationId`, `correlation_id` or `requestId` in metadata. Emitted as `correlationId` before 2.0.0 |
+| `record_kind` | `api` / `event` / `base` from the `logApi()` / `logEvent()` / `logBase()` helpers, or whatever you passed as `type`. Added in 2.0.0 |
+| `type` | always the constant `"log"`. Reserved — see below |
 | `environment`, `hostname`, `pid` | added automatically. `pid` is numeric |
-| `request` | the safe subset of an HTTP request, when the Express middleware is used |
+| `request` | the safe subset of an HTTP request: `method`, `url`, `ip`, `user_agent`, `correlation_id`. Present when you pass `req`. The last two were `userAgent` / `correlationId` before 2.0.0 |
 | anything else | your own metadata keys, passed through as-is |
 
 ### Fields the platform adds
@@ -72,13 +74,17 @@ trace_id       : 3f8a1c429b074d6ea5f12c8e7b40d913      <- derived, nothing sends
 
 Both forms are searchable, so either spelling of the id finds the entry.
 
-**The same value written under `correlationId` is stored but not recognised.** It receives no `trace_id` and cannot join a trace. Versions before 1.1.0 emitted only the camelCase spelling, so entries from those versions are not traceable — this is why the field was added, and why `correlationId` must not be "tidied" back into place. It remains emitted for compatibility with existing dashboards and is removed in 2.0.0.
+**The same value written under `correlationId` is stored but not recognised.** It receives no `trace_id` and cannot join a trace. Versions before 1.1.0 emitted only that camelCase spelling, so entries from those versions are not traceable. From 2.0.0 only `correlation_id` is emitted.
+
+**Querying across the changeover.** Entries written by older versions carry `correlationId` and entries written by 2.0.0 carry `correlation_id`, and both live in the index for the length of your retention period. A query that must span it needs `correlation_id: "abc" or correlationId: "abc"`. The same applies to `written_at` and the `timestamp` it replaced.
 
 ## A warning about `type`
 
-**Do not use `type` to narrow a dashboard.** The field has no owner. Measured across one production index on 2026-10-06, it held five distinct values: three that this package writes through its `logApi()` / `logEvent()` / `logBase()` helpers, one constant written by SAP's own Java encoder, and one that came from neither — a consumer had passed their own value as ordinary metadata and the formatter passed it straight through.
+**From 2.0.0 this package always writes `type: "log"`** — the constant SAP's own encoder uses — and reserves the field, so a value you pass as `type` is preserved under `record_kind` instead. That makes `type` safe to filter on for entries written by 2.0.0 and later.
 
-The consequence is that any `type:` filter silently excludes entries you meant to include, and the proportions are not intuitive: in that index the SAP constant accounted for well under one percent of all entries. **Filter on `app_name` instead.** A later release moves this package's own values to a different field, but that alone will not make `type` trustworthy, because nothing stops the next consumer writing a sixth value into it.
+**It is not safe for older entries.** Measured across one production index on 2026-10-06, before the change, `type` held five distinct values: three this package wrote through its helpers, the SAP constant, and one from a consumer who had simply passed `type` as metadata. The SAP constant accounted for well under one percent of all entries, so a `type: "log"` filter against historical data does not narrow a dashboard — it empties it.
+
+Until everything in your retention window was written by 2.0.0, **filter on `app_name`**, and use `record_kind` rather than `type` to pick out api/event/base entries.
 
 ## When nothing comes back
 
