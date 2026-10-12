@@ -149,15 +149,15 @@ Example: ```BTP_LOGGING_SRV_KEY_CRED ='<json content copy from service key>'```
 ```
 BTP_LOGGING_SRV_KEY_CRED ='{
     "client-ca": "<sensitive>",
-    "dashboards-endpoint": "dashboards-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
+    "dashboards-endpoint": "dashboards-sf-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
     "dashboards-password": "<sensitive>",
     "dashboards-username": "<sensitive>",
-    "ingest-endpoint": "ingest-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
+    "ingest-endpoint": "ingest-sf-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
     "ingest-mtls-cert": "",
-    "ingest-mtls-endpoint": "ingest-mtls-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
+    "ingest-mtls-endpoint": "ingest-mtls-sf-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
     "ingest-mtls-key": "",
     "ingest-password": "<sensitive>",
-    "ingest-username": "vMSeXiYcYF",
+    "ingest-username": "<sensitive>",
 "server-ca":"<sensitive>"
 }'
 ```
@@ -391,7 +391,7 @@ The dashboard endpoint and credentials are available in the SAP Cloud Logging se
 
 ```json
 {
-  "dashboards-endpoint": "dashboards-sf-61111e58-2a9a-4790-9baf-efe56ec2c871.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
+  "dashboards-endpoint": "dashboards-sf-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.cls-16.cloud.logs.services.eu10.hana.ondemand.com",
   "dashboards-password": "<sensitive>",
   "dashboards-username": "<sensitive>"
 }
